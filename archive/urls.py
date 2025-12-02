@@ -47,8 +47,6 @@ urlpatterns = [
     path('logout/', LogoutView.as_view(next_page='/login/'), name='logout'),
     path('register/', views.register_view, name='register'),
 
-    path('uploads/', include('processing.urls')),
-
     # Dashboard
     path('dashboard/', views.dashboard_view, name='dashboard'),
 ]
