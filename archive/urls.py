@@ -82,5 +82,5 @@ urlpatterns = [
     # Dashboard
     path('dashboard/', views.dashboard_view, name='dashboard'),
 
-    path('', include('processing.urls')),
+    path('uploads/', include(('processing.urls', 'processing'), namespace='processing')),
 ]
