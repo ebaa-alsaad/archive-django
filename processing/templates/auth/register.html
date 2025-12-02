@@ -15,10 +15,18 @@
 <style>
 body { font-family: 'Cairo', sans-serif; }
 
-/* Shadow & Animation */
+/* Shadow & Animations */
 .shadow-5xl { box-shadow: 0 50px 100px -25px rgba(0,0,0,0.2); }
-@keyframes slideUp { from {opacity:0; transform:translateY(20px) scale(0.95);} to {opacity:1; transform:translateY(0) scale(1);} }
-.animate-slideUp { animation: slideUp 0.8s cubic-bezier(0.25,0.46,0.45,0.94) forwards; animation-delay:0.2s; }
+
+@keyframes slideUp {
+  0% { opacity: 0; transform: translateY(20px) scale(0.95); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+.animate-slideUp {
+  animation: slideUp 0.8s cubic-bezier(0.25,0.46,0.45,0.94) forwards;
+  animation-delay: 0.2s;
+}
+
 @keyframes pulse-slow { 0%,100% {opacity:1;} 50% {opacity:0.8;} }
 .animate-pulse-slow { animation: pulse-slow 3s infinite ease-in-out; }
 
@@ -52,20 +60,18 @@ input:focus ~ label, input:not(:placeholder-shown) ~ label { transform: translat
     <!-- Toast Container -->
     <div id="toast-container" class="fixed top-5 right-5 z-50 space-y-3"></div>
 
-    <div class="z-10 w-full max-w-5xl mx-auto flex shadow-5xl rounded-3xl overflow-hidden bg-white dark:bg-gray-800 transition-colors duration-500 transform scale-90 opacity-0 animate-slideUp">
+    <div class="z-10 w-full max-w-5xl mx-auto flex shadow-5xl rounded-3xl overflow-hidden bg-white dark:bg-gray-800 transform scale-90 animate-slideUp">
 
         <!-- Right Panel -->
         <div class="w-full lg:w-3/5 p-10 sm:p-14 lg:p-20 flex flex-col justify-center dark:text-gray-100">
             <div class="mx-auto w-full max-w-md">
                 <div class="text-center mb-12">
                     <h2 class="text-5xl font-extrabold text-gray-900 dark:text-white mb-3 tracking-tighter">إنشاء حساب جديد</h2>
-                    <p class="text-lg text-gray-600 dark:text-gray-400">
-                        الرجاء إدخال بياناتك لإنشاء حساب جديد.
-                    </p>
+                    <p class="text-lg text-gray-600 dark:text-gray-400">الرجاء إدخال بياناتك لإنشاء حساب جديد.</p>
                 </div>
 
                 <form id="register-form" method="POST" class="space-y-10">{% csrf_token %}
-
+                    <!-- Username -->
                     <div class="relative group">
                         <input id="username" name="username" type="text" required placeholder=" " autocomplete="username"
                                class="block w-full px-4 pt-6 pb-2 text-lg appearance-none bg-transparent border-b-2 border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-0 focus:border-blue-500 peer dark:text-white transition-all duration-300">
@@ -74,6 +80,7 @@ input:focus ~ label, input:not(:placeholder-shown) ~ label { transform: translat
                         </label>
                     </div>
 
+                    <!-- Email -->
                     <div class="relative group">
                         <input id="email" name="email" type="email" required placeholder=" " autocomplete="email"
                                class="block w-full px-4 pt-6 pb-2 text-lg appearance-none bg-transparent border-b-2 border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-0 focus:border-blue-500 peer dark:text-white transition-all duration-300">
@@ -82,6 +89,7 @@ input:focus ~ label, input:not(:placeholder-shown) ~ label { transform: translat
                         </label>
                     </div>
 
+                    <!-- Password -->
                     <div class="relative group">
                         <input id="password" name="password" type="password" required placeholder=" " autocomplete="new-password"
                                class="block w-full px-4 pt-6 pb-2 text-lg appearance-none bg-transparent border-b-2 border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-0 focus:border-blue-500 peer dark:text-white transition-all duration-300">
@@ -90,6 +98,7 @@ input:focus ~ label, input:not(:placeholder-shown) ~ label { transform: translat
                         </label>
                     </div>
 
+                    <!-- Confirm Password -->
                     <div class="relative group">
                         <input id="password2" name="password2" type="password" required placeholder=" " autocomplete="new-password"
                                class="block w-full px-4 pt-6 pb-2 text-lg appearance-none bg-transparent border-b-2 border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-0 focus:border-blue-500 peer dark:text-white transition-all duration-300">
@@ -98,6 +107,7 @@ input:focus ~ label, input:not(:placeholder-shown) ~ label { transform: translat
                         </label>
                     </div>
 
+                    <!-- Submit Button -->
                     <div class="pt-6">
                         <button type="submit" id="register-button"
                                 class="w-full flex justify-center items-center py-4 px-4 border border-transparent rounded-full shadow-lg text-xl font-bold text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-500/50 transition duration-300 ease-in-out transform hover:shadow-2xl hover:shadow-blue-500/50 active:scale-95 disabled:bg-blue-400 disabled:cursor-not-allowed">
@@ -140,57 +150,38 @@ input:focus ~ label, input:not(:placeholder-shown) ~ label { transform: translat
     </div>
 </div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/js/toastr.min.js"></script>
 <script>
-document.addEventListener('DOMContentLoaded', () => {
-    const form = document.getElementById('register-form');
-    const button = document.getElementById('register-button');
-    const buttonText = document.getElementById('button-text');
-    const spinner = document.getElementById('loading-spinner');
-
-    function showToast(message) {
-        const container = document.getElementById('toast-container');
-        const toast = document.createElement('div');
-        toast.className = "toast max-w-sm w-full shadow-lg rounded-lg pointer-events-auto overflow-hidden ring-1 ring-black ring-opacity-10 toast-error";
-        toast.innerHTML = `<div class="p-3 text-sm flex items-center" dir="rtl">
-            <i class="fa-solid fa-circle-exclamation text-red-400 ml-3"></i>
-            <p class="font-medium flex-1">${message}</p>
-        </div>`;
-        container.appendChild(toast);
-        setTimeout(() => { toast.style.transform = "translateX(0)"; toast.style.opacity = "1"; }, 10);
-        setTimeout(() => { toast.style.transform = "translateX(120%)"; toast.style.opacity = "0"; toast.addEventListener("transitionend", () => toast.remove()); }, 4500);
-    }
-
-    form.addEventListener('submit', async (e) => {
+$(document).ready(function() {
+    $('#register-form').on('submit', function(e) {
         e.preventDefault();
-        button.disabled = true;
-        buttonText.textContent = "جاري المعالجة...";
-        spinner.classList.remove('hidden');
-        const formData = new FormData(form);
+        var $btn = $('#register-button');
+        var $text = $('#button-text');
+        var $spinner = $('#loading-spinner');
+        $btn.prop('disabled', true);
+        $text.text('جاري المعالجة...');
+        $spinner.removeClass('hidden');
 
-        try {
-            const res = await fetch("{% url 'register' %}", {
-                method: "POST",
-                headers: {
-                    "X-CSRFToken": document.querySelector('[name=csrfmiddlewaretoken]').value,
-                    "X-Requested-With": "XMLHttpRequest",
-                    "Accept": "application/json"
-                },
-                body: formData
-            });
-
-            const data = await res.json().catch(() => ({}));
-
-            if (res.ok && data.success) {
-                showToast(data.message || "تم إنشاء الحساب بنجاح");
-                setTimeout(() => { window.location.href = data.redirect_url || "/dashboard/"; }, 1000);
-            } else if (data.message) { showToast(data.message); }
-            else { showToast("حدث خطأ أثناء التسجيل."); }
-
-        } catch (err) { showToast("خطأ في الاتصال بالخادم."); }
-
-        button.disabled = false;
-        buttonText.textContent = "إنشاء الحساب";
-        spinner.classList.add('hidden');
+        $.ajax({
+            url: "{% url 'register' %}",
+            method: "POST",
+            data: $(this).serialize(),
+            success: function(data) {
+                if (data.success) {
+                    toastr.success(data.message);
+                    setTimeout(function() { window.location.href = data.redirect_url || "/dashboard/"; }, 1000);
+                } else {
+                    toastr.error(data.message);
+                }
+            },
+            error: function(xhr) { toastr.error(xhr.responseJSON?.message || "حدث خطأ ما."); },
+            complete: function() {
+                $btn.prop('disabled', false);
+                $text.text('إنشاء الحساب');
+                $spinner.addClass('hidden');
+            }
+        });
     });
 });
 </script>
