@@ -26,10 +26,10 @@ SECRET_KEY = 'django-insecure-e+z!5@a)ur#&klw*=e_rv^nd_56xquwln0hjm(gx34@fb%h=6'
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['archivedoc.citytecapp.com', '127.0.0.1', 'localhost']
+
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
-PRIVATE_MEDIA_ROOT = os.path.join(BASE_DIR, 'media', 'uploads')
 
 
 # Application definition
@@ -95,6 +95,15 @@ LOGGING = {
         },
     },
 }
+CACHES = {
+    "default": {
+        "BACKEND": "django_redis.cache.RedisCache",
+        "LOCATION": "redis://127.0.0.1:6379/1",
+        "OPTIONS": {
+            "CLIENT_CLASS": "django_redis.client.DefaultClient",
+        }
+    }
+}
 
 WSGI_APPLICATION = 'archive.wsgi.application'
 
@@ -144,7 +153,7 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
-STATIC_URL = 'static/'
+STATIC_ROOT = BASE_DIR / 'static'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
