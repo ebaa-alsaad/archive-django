@@ -35,6 +35,7 @@ from django.urls import path, include
 from processing import views
 
 urlpatterns = [
+    path('', RedirectView.as_view(url='/login/', permanent=False)),
     path('admin/', admin.site.urls),
 
     # Auth
