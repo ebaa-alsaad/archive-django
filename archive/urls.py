@@ -40,6 +40,7 @@ from django.contrib.auth.views import LogoutView
 urlpatterns = [
     path('', RedirectView.as_view(url='/login/', permanent=False)),
 
+    path('', include('processing.urls')),
     path('admin/', admin.site.urls),
 
     # Authentication
