@@ -194,5 +194,5 @@ def register_view(request):
         user = User.objects.create_user(username=username, email=email, password=password)
         login(request, user)
         return JsonResponse({'success': True, 'message': 'تم إنشاء الحساب بنجاح!', 'redirect_url': '/dashboard/'})
-
+print("Reached register_view")
     return render(request, "auth/register.html")
