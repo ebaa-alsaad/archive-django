@@ -5,6 +5,7 @@ import subprocess
 import logging
 import time
 from pathlib import Path
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from django.conf import settings
 from .models import Upload, Group
 from django.core.cache import cache
@@ -18,35 +19,38 @@ try:
 except ImportError:
     REDIS_AVAILABLE = False
 
+
 class BarcodeOCRService:
-    def __init__(self):
+    def __init__(self, max_workers=4):
         self.image_cache = {}
         self.barcode_cache = {}
         self.text_cache = {}
         self.ocr_cache = {}
         self.pdf_hash = None
         self.upload_id = None
+        self.max_workers = max_workers
 
+        # إعداد Redis أو cache
         if REDIS_AVAILABLE:
             try:
                 self.redis = get_redis_connection("default")
             except Exception as e:
-                logger.warning(f"Redis connection failed, falling back to cache: {e}")
+                logger.warning(f"Redis connection failed, fallback to cache: {e}")
                 self.redis = cache
         else:
             self.redis = cache
 
     def process_pdf(self, upload: Upload):
+        """المعالجة الرئيسية للـ PDF"""
         lock_key = f"processing_{upload.id}"
         if self.redis.get(lock_key):
             logger.warning(f"Processing already in progress for upload {upload.id}")
             return []
 
+        # تعيين lock لمنع المعالجة المتزامنة
         try:
-            # تعيين مفتاح مؤقت
             self.redis.set(lock_key, "true", timeout=7200)
         except Exception:
-            # fallback إذا backend لا يدعم timeout
             self.redis.set(lock_key, "true")
 
         self.upload_id = upload.id
@@ -64,7 +68,7 @@ class BarcodeOCRService:
         separator_barcode = self.read_page_barcode(pdf_path, 1) or "default_barcode"
         self.update_progress(upload.id, 5, "جاري تقسيم الصفحات إلى أقسام...")
 
-        # تقسيم الصفحات إلى أقسام
+        # تقسيم الصفحات إلى أقسام حسب الباركود
         sections, current_section = [], []
         for page in range(1, page_count + 1):
             barcode = self.read_page_barcode(pdf_path, page)
@@ -78,51 +82,57 @@ class BarcodeOCRService:
             sections.append(current_section)
 
         self.update_progress(upload.id, 10, "جاري إنشاء ملفات PDF للمجموعات...")
+
         created_groups = []
-        total_sections = len(sections)
 
-        for idx, pages in enumerate(sections):
-            if not pages:
-                continue
-            progress_value = 10 + (idx / total_sections) * 85
-            self.update_progress(upload.id, progress_value,
-                                 f"جاري إنشاء المجموعة {idx + 1} من {total_sections}...")
+        # معالجة كل Section بشكل متوازي
+        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+            futures = {executor.submit(self._create_group_pdf, pdf_path, pages, idx, separator_barcode, upload): idx
+                       for idx, pages in enumerate(sections)}
 
-            filename = self.generate_filename_with_ocr(pdf_path, pages, idx, separator_barcode)
-            filename_safe = f"{filename}.pdf"
-            directory = Path(settings.PRIVATE_MEDIA_ROOT) / "groups"
-            directory.mkdir(parents=True, exist_ok=True)
-            output_path = directory / filename_safe
-            db_path = f"groups/{filename_safe}"
-
-            if self.create_pdf(pdf_path, pages, output_path):
-                group = Group.objects.create(
-                    code=separator_barcode,
-                    pdf_path=db_path,
-                    pages_count=len(pages),
-                    user=upload.user,
-                    upload=upload
-                )
-                created_groups.append(group)
-            else:
-                logger.warning(f"Failed creating PDF for group {filename_safe}")
-
-            # حذف الملف الأصلي 
-            try:
-                (Path(settings.PRIVATE_MEDIA_ROOT) / upload.stored_filename).unlink()
-            except Exception as e:
-                logger.warning(f"Failed to delete original file: {e}")
+            for future in as_completed(futures):
+                group = future.result()
+                if group:
+                    created_groups.append(group)
 
         self.update_progress(upload.id, 100, "تم الانتهاء من المعالجة")
+
         try:
             self.redis.delete(lock_key)
         except Exception:
             pass
+
         upload.status = 'completed'
         upload.save()
         return created_groups
 
+    def _create_group_pdf(self, pdf_path, pages, index, barcode, upload):
+        """إنشاء PDF لكل مجموعة"""
+        if not pages:
+            return None
+
+        filename = self.generate_filename_with_ocr(pdf_path, pages, index, barcode)
+        filename_safe = f"{filename}.pdf"
+        directory = Path(settings.PRIVATE_MEDIA_ROOT) / "groups"
+        directory.mkdir(parents=True, exist_ok=True)
+        output_path = directory / filename_safe
+        db_path = f"groups/{filename_safe}"
+
+        if self.create_pdf(pdf_path, pages, output_path):
+            group = Group.objects.create(
+                code=barcode,
+                pdf_path=db_path,
+                pages_count=len(pages),
+                user=upload.user,
+                upload=upload
+            )
+            return group
+        else:
+            logger.warning(f"Failed creating PDF for group {filename_safe}")
+            return None
+
     def update_progress(self, upload_id, progress, message=""):
+        """تحديث حالة المعالجة"""
         try:
             cache.set(f"upload_progress:{upload_id}", progress, timeout=3600)
             cache.set(f"upload_message:{upload_id}", message, timeout=3600)
