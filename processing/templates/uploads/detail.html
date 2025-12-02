@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}تفاصيل الملف{% endblock %}
+
+{% block content %}
+
+<h2 class="text-2xl font-bold mb-6">📄 تفاصيل الملف</h2>
+
+<div class="bg-white p-6 rounded shadow">
+
+    <p class="mb-3"><b>الاسم:</b> {{ upload.original_filename }}</p>
+    <p class="mb-3"><b>الحالة:</b> {{ upload.status }}</p>
+    <p class="mb-3"><b>عدد الصفحات:</b> {{ upload.total_pages }}</p>
+
+    <div class="mt-6 flex gap-4">
+        <a href="{% url 'download_file' upload.id %}" class="bg-blue-600 text-white px-4 py-2 rounded">
+            تحميل الملف
+        </a>
+        <a href="{% url 'processing:process_upload' upload.id %}" class="bg-green-600 text-white px-4 py-2 rounded">
+            بدء المعالجة
+        </a>
+    </div>
+</div>
+
+{% endblock %}

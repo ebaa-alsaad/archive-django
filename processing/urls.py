@@ -1,0 +1,19 @@
+from django.urls import path
+from . import views
+
+app_name = 'processing'
+
+urlpatterns = [
+    path('uploads/', views.upload_list, name='upload_list'),
+    path('uploads/create/', views.upload_create, name='upload_create'),
+    path('uploads/<int:upload_id>/', views.upload_detail, name='upload_detail'),
+    path('uploads/<int:upload_id>/download/', views.download_file, name='download_file'),
+    path('uploads/<int:upload_id>/process/', views.process_upload, name='process_upload'),
+    path('uploads/<int:upload_id>/status/', views.check_status, name='check_status'),
+    path('uploads/<int:upload_id>/download_zip/', views.download_zip, name='download_zip'),
+    path('uploads/<int:upload_id>/delete/', views.upload_delete, name='upload_delete'),
+
+    # Dashboard
+    path('dashboard/', views.dashboard_view, name='dashboard'),
+
+]

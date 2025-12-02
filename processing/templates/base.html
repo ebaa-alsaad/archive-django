@@ -1,0 +1,101 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}نظام الأرشفة الإلكترونية{% endblock %}</title>
+
+    <!-- استخدام static بشكل صحيح -->
+    <link rel="icon" type="image/png" href="{% static 'images/favicon.png' %}">
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
+
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- استيراد خط Cairo -->
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+
+    <!-- Alpine.js لدعم القائمة المنسدلة -->
+    <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/cdn.min.js" defer></script>
+</head>
+
+<body class="body-pattern text-gray-800">
+
+<header class="sticky top-0 z-50 bg-white shadow-xl shadow-gray-200/50 border-b border-gray-100/70">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
+
+        <!-- شعار النظام -->
+        <a href="{% url 'processing:dashboard' %}" class="flex items-center gap-3 flex-shrink-0 group">
+            <span class="text-blue-600 text-3xl transition-transform group-hover:scale-105">
+                <i class="fa-solid fa-folder-open"></i>
+            </span>
+            <h1 class="text-2xl font-extrabold text-gray-900 transition-colors group-hover:text-blue-700">نظام الأرشفة الإلكترونية</h1>
+        </a>
+
+        <!-- زر رفع ملف ومنطقة البروفايل -->
+        <div class="flex items-center gap-6 flex-shrink-0">
+            <a href="{% url 'processing:upload_create' %}"
+               class="bg-blue-600 text-white px-6 py-2.5 rounded-xl font-extrabold text-base
+                      shadow-2xl shadow-blue-500/70
+                      hover:bg-blue-700 transition transform hover:-translate-y-0.5 hover:shadow-blue-500/90 duration-300">
+                <i class="fa-solid fa-cloud-upload-alt ml-2"></i> رفع ملف جديد
+            </a>
+
+            {% if user.is_authenticated %}
+            <div x-data="{ open: false }" @keydown.escape.window="open = false" class="relative">
+                <button @click="open = !open" type="button"
+                        class="flex items-center gap-2 p-1 bg-white rounded-full
+                               border border-gray-300 hover:border-blue-400
+                               transition duration-150 focus:outline-none focus:ring-4 focus:ring-blue-500/50">
+                    <!-- الأحرف الأولى من اسم المستخدم -->
+                    <div class="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center
+                                text-white font-bold text-lg border-2 border-white shadow-md">
+                        {{ user.username|slice:":1" }}{{ user.last_name|slice:":1" }}
+                    </div>
+                    <span class="font-bold text-gray-700 hidden sm:block ml-1">{{ user.username }}</span>
+                    <i class="fa-solid fa-chevron-down text-gray-500 text-xs mr-2 transition-transform" :class="{ 'rotate-180': open }"></i>
+                </button>
+
+                <div x-show="open" @click.away="open = false" x-transition
+                     class="absolute left-0 mt-3 w-64 rounded-xl shadow-2xl bg-white border border-gray-200 ring-1 ring-black ring-opacity-5 z-50 origin-top-left"
+                     style="display: none;">
+                    <div class="p-4 border-b border-gray-100">
+                        <p class="font-extrabold text-lg text-gray-800">{{ user.get_full_name }}</p>
+                        <p class="text-sm text-gray-500 truncate">{{ user.email }}</p>
+                    </div>
+
+                    <div class="py-1">
+                        <form method="POST" action="{% url 'logout' %}">
+                            {% csrf_token %}
+                            <button type="submit"
+                                    class="w-full text-right block px-4 py-2 text-sm text-red-600 hover:bg-red-50 hover:text-red-700 transition duration-150 font-bold border-t border-gray-100 mt-2 rounded-b-xl">
+                                <i class="fa-solid fa-right-from-bracket ml-2 w-4"></i> تسجيل الخروج
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="h-px bg-gray-200/70"></div>
+
+    <!-- شريط التنقل -->
+    <nav class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="flex items-center gap-2 text-base font-semibold">
+            <a href="{% url 'processing:dashboard' %}" class="py-3 px-4 transition duration-200 rounded-t-lg flex items-center {% if request.resolver_match.url_name == 'dashboard' %}text-blue-700 border-b-4 border-blue-600 font-extrabold -mb-px bg-blue-50{% else %}text-gray-600 hover:text-blue-700 hover:bg-blue-50/50{% endif %}">
+                <i class="fa-solid fa-house-chimney ml-2"></i> الرئيسية
+            </a>
+            <a href="{% url 'processing:upload_list' %}" class="py-3 px-4 transition duration-200 rounded-t-lg flex items-center {% if request.resolver_match.url_name == 'upload_list' %}text-blue-700 border-b-4 border-blue-600 font-extrabold -mb-px bg-blue-50{% else %}text-gray-600 hover:text-blue-700 hover:bg-blue-50/50{% endif %}">
+                <i class="fa-solid fa-file-invoice ml-2"></i> الملفات المرفوعة
+            </a>
+        </div>
+    </nav>
+</header>
+
+{% block content %}{% endblock %}
+
+</body>
+</html>

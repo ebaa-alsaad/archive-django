@@ -1,0 +1,237 @@
+{% extends "base.html" %}
+{% load static %}
+{% block content %}
+<div class="max-w-4xl mx-auto p-6 space-y-8">
+
+    <h2 class="text-4xl font-extrabold text-center text-gray-800">
+        <i class="fa-solid fa-cloud-arrow-up text-blue-600 ml-3"></i> رفع ملفات PDF
+    </h2>
+
+    <div id="toast-container" class="fixed top-5 right-5 z-[100] space-y-2 max-w-sm"></div>
+
+    <!-- منطقة الرفع -->
+    <div id="upload-card" class="bg-white p-8 rounded-2xl shadow-xl border border-gray-100">
+        <form id="upload-form" enctype="multipart/form-data" class="space-y-6">
+            {% csrf_token %}
+            <input id="file-input" type="file" name="pdf_file[]" accept="application/pdf" multiple class="hidden"/>
+            <div id="drop-zone"
+                 class="flex flex-col items-center justify-center w-full h-64 border-3 border-dashed border-gray-300 bg-gray-50 hover:bg-gray-100 rounded-2xl cursor-pointer transition-all duration-300 ease-in-out">
+                <div class="flex flex-col items-center justify-center text-center px-6">
+                    <i class="fa-solid fa-file-arrow-up text-6xl mb-4 text-blue-500 transition-all duration-300"></i>
+                    <p class="mb-2 text-xl text-gray-700 font-bold">
+                        <span class="text-blue-700">اسحب وأفلت ملفات PDF</span> أو انقر للتحميل
+                    </p>
+                    <p class="text-sm text-gray-500 mb-2">ملفات PDF فقط • الحد الأقصى لكل ملف 250MB</p>
+                    <p id="file-names" class="mt-4 text-base text-gray-800 font-semibold max-w-md truncate"></p>
+                </div>
+            </div>
+
+            <div id="upload-progress-container" class="space-y-3 hidden">
+                <div class="flex justify-between items-center text-sm font-semibold text-gray-700">
+                    <span id="upload-progress-message">جاري رفع الملفات...</span>
+                    <span id="upload-progress-percentage">0%</span>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-2.5">
+                    <div id="upload-progress-bar" class="bg-blue-500 h-2.5 rounded-full transition-all duration-300 ease-out" style="width: 0%"></div>
+                </div>
+            </div>
+
+            <button type="submit" id="start-upload"
+                    class="w-full bg-gradient-to-r from-blue-600 to-blue-500 text-white px-8 py-4 rounded-xl font-bold text-lg shadow-lg disabled:opacity-50 disabled:cursor-not-allowed hover:from-blue-700 hover:to-blue-600 transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98]">
+                <i class="fa-solid fa-paper-plane ml-2"></i> رفع الملفات
+            </button>
+        </form>
+    </div>
+
+    <!-- نتائج المعالجة -->
+    <div id="results-container" class="hidden bg-green-50 p-6 rounded-2xl border border-green-200">
+        <div class="text-center">
+            <i class="fa-solid fa-circle-check text-green-500 text-4xl mb-3"></i>
+            <h3 class="text-xl font-bold text-green-800 mb-2">تمت المعالجة بنجاح!</h3>
+            <p class="text-green-600 mb-2" id="results-message"></p>
+            <div class="flex gap-3 justify-center">
+                <button onclick="resetToUpload()" class="bg-green-500 text-white px-6 py-2 rounded-lg hover:bg-green-600 transition-colors">
+                    <i class="fa-solid fa-plus ml-2"></i> رفع ملفات جديدة
+                </button>
+                <button id="download-zip" class="bg-blue-500 text-white px-6 py-2 rounded-lg hover:bg-blue-600 transition-colors">
+                    <i class="fa-solid fa-file-zipper ml-2"></i> تحميل ZIP
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- حالة الخطأ -->
+    <div id="error-container" class="hidden bg-red-50 p-6 rounded-2xl border border-red-200">
+        <div class="text-center">
+            <i class="fa-solid fa-circle-exclamation text-red-500 text-4xl mb-3"></i>
+            <h3 class="text-xl font-bold text-red-800 mb-2">فشلت المعالجة</h3>
+            <p class="text-red-600 mb-4" id="error-message"></p>
+            <button onclick="resetToUpload()" class="bg-red-500 text-white px-6 py-2 rounded-lg hover:bg-red-600 transition-colors">
+                <i class="fa-solid fa-rotate-left ml-2"></i> المحاولة مرة أخرى
+            </button>
+        </div>
+    </div>
+
+</div>
+
+<script>
+const fileInput = document.getElementById('file-input');
+const startUploadBtn = document.getElementById('start-upload');
+const fileNamesDisplay = document.getElementById('file-names');
+
+const uploadProgressContainer = document.getElementById('upload-progress-container');
+const uploadProgressBar = document.getElementById('upload-progress-bar');
+const uploadProgressPercentage = document.getElementById('upload-progress-percentage');
+
+const resultsContainer = document.getElementById('results-container');
+const errorContainer = document.getElementById('error-container');
+const resultsMessage = document.getElementById('results-message');
+const downloadZipBtn = document.getElementById('download-zip');
+
+let uploadedIds = [];
+
+// ========================
+// Show File Names Selected
+// ========================
+fileInput.addEventListener('change', () => {
+    if (fileInput.files.length > 0) {
+        fileNamesDisplay.textContent = Array.from(fileInput.files)
+            .map(f => f.name)
+            .join(', ');
+    }
+});
+
+// toast notifications
+function showToast(message, type='info'){
+    const colors = {
+        success: 'bg-green-500 text-white border-green-600',
+        error: 'bg-red-500 text-white border-red-600',
+        warning: 'bg-yellow-500 text-white border-yellow-600',
+        info: 'bg-blue-500 text-white border-blue-600'
+    };
+    const icons = {
+        success:'fa-circle-check', error:'fa-circle-exclamation', 
+        warning:'fa-triangle-exclamation', info:'fa-circle-info'
+    };
+
+    const toastContainer = document.getElementById('toast-container');
+    const toast = document.createElement('div');
+    toast.className = `p-4 rounded-lg shadow-lg border ${colors[type]} animate-fade-in flex items-center space-x-3 space-x-reverse`;
+    toast.innerHTML = `<i class="fa-solid ${icons[type]}"></i><span>${message}</span>`;
+    toastContainer.appendChild(toast);
+
+    setTimeout(()=>{
+        toast.classList.add('animate-fade-out'); 
+        setTimeout(()=>toast.remove(),300)
+    },5000);
+}
+
+// ========== Drag & Drop ==========
+document.getElementById('drop-zone').addEventListener('click', ()=>fileInput.click());
+document.getElementById('drop-zone').addEventListener('dragover', e=>{
+    e.preventDefault(); 
+    e.currentTarget.classList.add('border-blue-500','bg-blue-50');
+});
+document.getElementById('drop-zone').addEventListener('dragleave', e=>{
+    e.currentTarget.classList.remove('border-blue-500','bg-blue-50');
+});
+document.getElementById('drop-zone').addEventListener('drop', e=>{
+    e.preventDefault(); 
+    e.currentTarget.classList.remove('border-blue-500','bg-blue-50');
+
+    const dt = new DataTransfer();
+    for(const f of e.dataTransfer.files) dt.items.add(f);
+
+    fileInput.files = dt.files;
+    fileNamesDisplay.textContent = Array.from(dt.files).map(f=>f.name).join(', ');
+});
+
+// ========== Upload Form ==========
+document.getElementById('upload-form').addEventListener('submit', async e=>{
+    e.preventDefault();
+    if(!fileInput.files.length){ 
+        showToast('اختر ملف PDF أولاً','error'); 
+        return; 
+    }
+
+    const formData = new FormData();
+    for(const f of fileInput.files) 
+        formData.append('pdf_file[]', f);
+
+    startUploadBtn.disabled = true;
+    uploadProgressContainer.classList.remove('hidden');
+
+    try{
+        const resp = await fetch("{% url 'processing:upload_create' %}", {
+            method:'POST', 
+            body: formData,
+            headers:{'X-CSRFToken':'{{ csrf_token }}'}
+        });
+
+        const data = await resp.json();
+        if(!data.success) throw new Error(data.error || 'فشل الرفع');
+
+        uploadedIds = data.uploads.map(u=>u.id);
+
+        showToast('تم رفع الملفات بنجاح!','success');
+        uploadProgressBar.style.width = '100%';
+        uploadProgressPercentage.textContent = '100%';
+
+        // معالجة الملفات بالتوازي (Concurrent)
+        await Promise.all(uploadedIds.map(id => processUpload(id)));
+
+    } catch(err){
+        showToast(err.message,'error');
+        resetToUpload();
+    }
+});
+
+// ========== Process Upload ==========
+async function processUpload(uploadId){
+    try{
+        const resp = await fetch(`/uploads/${uploadId}/process/`, {
+            method:'POST', 
+            headers:{'X-CSRFToken':'{{ csrf_token }}'}
+        });
+
+        const data = await resp.json();
+        if(!data.success) throw new Error(data.error);
+
+        resultsMessage.textContent = 
+            `تم إنشاء ${data.groups_count} مجموعة من أصل ${data.total_pages} صفحة`;
+
+        resultsContainer.classList.remove('hidden');
+        document.getElementById('upload-card').classList.add('hidden');
+
+        downloadZipBtn.onclick = ()=> window.location.href=`/uploads/${uploadId}/download/`;
+
+    }catch(err){
+        showToast(err.message,'error');
+        errorContainer.classList.remove('hidden');
+        document.getElementById('upload-card').classList.add('hidden');
+    }
+}
+
+// ========== Reset ==========
+function resetToUpload(){
+    fileInput.value='';
+    fileNamesDisplay.textContent='';
+    uploadProgressContainer.classList.add('hidden');
+    resultsContainer.classList.add('hidden');
+    errorContainer.classList.add('hidden');
+    startUploadBtn.disabled = false;
+    document.getElementById('upload-card').classList.remove('hidden');
+}
+</script>
+
+
+<style>
+.animate-fade-in{animation:fadeIn 0.3s ease-in-out;}
+.animate-fade-out{animation:fadeOut 0.3s ease-in-out;}
+@keyframes fadeIn{from{opacity:0;transform:translateY(-10px);}to{opacity:1;transform:translateY(0);}}
+@keyframes fadeOut{from{opacity:1;transform:translateY(0);}to{opacity:0;transform:translateY(-10px);}}
+#drop-zone{transition: all 0.3s ease;}
+#drop-zone:hover{border-color: #3b82f6; background-color: #f8fafc;}
+#upload-progress-bar{transition:width 0.3s ease;}
+</style>
+{% endblock %}

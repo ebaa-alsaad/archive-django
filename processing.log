@@ -1,0 +1,654 @@
+Watching for file changes with StatReloader
+Redis connection failed, falling back to cache: This backend does not support this feature
+Session data corrupted
+Redis connection failed, falling back to cache: This backend does not support this feature
+Redis connection failed, falling back to cache: This backend does not support this feature
+Watching for file changes with StatReloader
+Redis connection failed, falling back to cache: This backend does not support this feature
+Session data corrupted
+Session data corrupted
+Internal Server Error: /uploads/2/
+Traceback (most recent call last):
+  File "C:\project\archive-django\venv\Lib\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+  File "C:\project\archive-django\venv\Lib\site-packages\django\core\handlers\base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+  File "C:\project\archive-django\venv\Lib\site-packages\django\contrib\auth\decorators.py", line 59, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+  File "C:\project\archive-django\processing\views.py", line 55, in upload_detail
+    return render(request, 'uploads/detail.html', {'upload': upload})
+  File "C:\project\archive-django\venv\Lib\site-packages\django\shortcuts.py", line 25, in render
+    content = loader.render_to_string(template_name, context, request, using=using)
+  File "C:\project\archive-django\venv\Lib\site-packages\django\template\loader.py", line 62, in render_to_string
+    return template.render(context, request)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "C:\project\archive-django\venv\Lib\site-packages\django\template\backends\django.py", line 107, in render
+    return self.template.render(context)
+           ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\project\archive-django\venv\Lib\site-packages\django\template\base.py", line 171, in render
+    return self._render(context)
+           ~~~~~~~~~~~~^^^^^^^^^
+  File "C:\project\archive-django\venv\Lib\site-packages\django\template\base.py", line 163, in _render
+    return self.nodelist.render(context)
+           ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\project\archive-django\venv\Lib\site-packages\django\template\base.py", line 1016, in render
+    return SafeString("".join([node.render_annotated(context) for node in self]))
+                               ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\project\archive-django\venv\Lib\site-packages\django\template\base.py", line 977, in render_annotated
+    return self.render(context)
+           ~~~~~~~~~~~^^^^^^^^^
+  File "C:\project\archive-django\venv\Lib\site-packages\django\template\loader_tags.py", line 159, in render
+    return compiled_parent._render(context)
+           ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\project\archive-django\venv\Lib\site-packages\django\template\base.py", line 163, in _render
+    return self.nodelist.render(context)
+           ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\project\archive-django\venv\Lib\site-packages\django\template\base.py", line 1016, in render
+    return SafeString("".join([node.render_annotated(context) for node in self]))
+                               ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\project\archive-django\venv\Lib\site-packages\django\template\base.py", line 977, in render_annotated
+    return self.render(context)
+           ~~~~~~~~~~~^^^^^^^^^
+  File "C:\project\archive-django\venv\Lib\site-packages\django\template\loader_tags.py", line 65, in render
+    result = block.nodelist.render(context)
+  File "C:\project\archive-django\venv\Lib\site-packages\django\template\base.py", line 1016, in render
+    return SafeString("".join([node.render_annotated(context) for node in self]))
+                               ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\project\archive-django\venv\Lib\site-packages\django\template\base.py", line 977, in render_annotated
+    return self.render(context)
+           ~~~~~~~~~~~^^^^^^^^^
+  File "C:\project\archive-django\venv\Lib\site-packages\django\template\defaulttags.py", line 480, in render
+    url = reverse(view_name, args=args, kwargs=kwargs, current_app=current_app)
+  File "C:\project\archive-django\venv\Lib\site-packages\django\urls\base.py", line 98, in reverse
+    resolved_url = resolver._reverse_with_prefix(view, prefix, *args, **kwargs)
+  File "C:\project\archive-django\venv\Lib\site-packages\django\urls\resolvers.py", line 831, in _reverse_with_prefix
+    raise NoReverseMatch(msg)
+django.urls.exceptions.NoReverseMatch: Reverse for 'download_file' not found. 'download_file' is not a valid view function or pattern name.
+Not Found: /processing/3/process/
+Not Found: /processing/4/process/
+C:\project\archive-django\processing\urls.py changed, reloading.
+Watching for file changes with StatReloader
+Redis connection failed, falling back to cache: This backend does not support this feature
+Not Found: /processing/6/process/
+Not Found: /processing/5/process/
+Processing failed: PDF file not found: C:\project\archive-django\media\private\uploads\1_0001_yqK8maK.pdf
+Processing failed: PDF file not found: C:\project\archive-django\media\private\uploads\Scan_00014 (1)_i17vysH.pdf
+Processing failed: PDF file not found: C:\project\archive-django\media\private\uploads\7727_merged.pdf
+C:\project\archive-django\archive\settings.py changed, reloading.
+Watching for file changes with StatReloader
+Redis connection failed, falling back to cache: This backend does not support this feature
+Processing failed: PDF file not found: C:\project\archive-django\media\private\uploads\Scan_00014 (1).pdf
+C:\project\archive-django\processing\views.py changed, reloading.
+Watching for file changes with StatReloader
+Redis connection failed, falling back to cache: This backend does not support this feature
+Internal Server Error: /uploads/create/
+Traceback (most recent call last):
+  File "C:\project\archive-django\venv\Lib\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+  File "C:\project\archive-django\venv\Lib\site-packages\django\core\handlers\base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+  File "C:\project\archive-django\venv\Lib\site-packages\django\contrib\auth\decorators.py", line 59, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+  File "C:\project\archive-django\processing\views.py", line 33, in upload_create
+    stored_name = f"{uuid.uuid4().hex}_{f.name}"
+                     ^^^^
+NameError: name 'uuid' is not defined. Did you forget to import 'uuid'?
+C:\project\archive-django\processing\views.py changed, reloading.
+Watching for file changes with StatReloader
+Redis connection failed, falling back to cache: This backend does not support this feature
+Internal Server Error: /uploads/create/
+Traceback (most recent call last):
+  File "C:\project\archive-django\venv\Lib\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+  File "C:\project\archive-django\venv\Lib\site-packages\django\core\handlers\base.py", line 204, in _get_response
+    self.check_response(response, callback)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+  File "C:\project\archive-django\venv\Lib\site-packages\django\core\handlers\base.py", line 332, in check_response
+    raise ValueError(
+    ...<2 lines>...
+    )
+ValueError: The view processing.views.upload_create didn't return an HttpResponse object. It returned None instead.
+C:\project\archive-django\processing\views.py changed, reloading.
+Watching for file changes with StatReloader
+Redis connection failed, falling back to cache: This backend does not support this feature
+Internal Server Error: /uploads/create/
+Traceback (most recent call last):
+  File "C:\project\archive-django\venv\Lib\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+  File "C:\project\archive-django\venv\Lib\site-packages\django\core\handlers\base.py", line 204, in _get_response
+    self.check_response(response, callback)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+  File "C:\project\archive-django\venv\Lib\site-packages\django\core\handlers\base.py", line 332, in check_response
+    raise ValueError(
+    ...<2 lines>...
+    )
+ValueError: The view processing.views.upload_create didn't return an HttpResponse object. It returned None instead.
+C:\project\archive-django\processing\views.py changed, reloading.
+Internal Server Error: /uploads/create/
+Traceback (most recent call last):
+  File "C:\project\archive-django\venv\Lib\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+  File "C:\project\archive-django\venv\Lib\site-packages\django\core\handlers\base.py", line 204, in _get_response
+    self.check_response(response, callback)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+  File "C:\project\archive-django\venv\Lib\site-packages\django\core\handlers\base.py", line 332, in check_response
+    raise ValueError(
+    ...<2 lines>...
+    )
+ValueError: The view processing.views.upload_create didn't return an HttpResponse object. It returned None instead.
+Watching for file changes with StatReloader
+Watching for file changes with StatReloader
+Redis connection failed, falling back to cache: This backend does not support this feature
+Internal Server Error: /uploads/create/
+Traceback (most recent call last):
+  File "C:\project\archive-django\venv\Lib\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+  File "C:\project\archive-django\venv\Lib\site-packages\django\core\handlers\base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+  File "C:\project\archive-django\venv\Lib\site-packages\django\contrib\auth\decorators.py", line 59, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+  File "C:\project\archive-django\processing\views.py", line 34, in upload_create
+    upload_dir = os.path.join(settings.MEDIA_ROOT, 'private', 'uploads')
+                              ^^^^^^^^
+NameError: name 'settings' is not defined
+C:\project\archive-django\processing\views.py changed, reloading.
+Watching for file changes with StatReloader
+Redis connection failed, falling back to cache: This backend does not support this feature
+Processing failed: PDF file not found: C:\project\archive-django\media\private\Scan_00014 (1).pdf
+C:\project\archive-django\archive\settings.py changed, reloading.
+Watching for file changes with StatReloader
+Redis connection failed, falling back to cache: This backend does not support this feature
+C:\project\archive-django\processing\views.py changed, reloading.
+Watching for file changes with StatReloader
+Redis connection failed, falling back to cache: This backend does not support this feature
+C:\project\archive-django\processing\services.py changed, reloading.
+Watching for file changes with StatReloader
+Redis connection failed, falling back to cache: This backend does not support this feature
+Processing failed: PDF file not found: C:\project\archive-django\media\private\Scan_00014 (1).pdf
+C:\project\archive-django\processing\views.py changed, reloading.
+Watching for file changes with StatReloader
+Redis connection failed, falling back to cache: This backend does not support this feature
+C:\project\archive-django\archive\settings.py changed, reloading.
+Watching for file changes with StatReloader
+Redis connection failed, falling back to cache: This backend does not support this feature
+Processing failed: Unable to determine page count
+Internal Server Error: /uploads/
+Traceback (most recent call last):
+  File "C:\project\archive-django\venv\Lib\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+  File "C:\project\archive-django\venv\Lib\site-packages\django\core\handlers\base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+  File "C:\project\archive-django\venv\Lib\site-packages\django\contrib\auth\decorators.py", line 59, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+  File "C:\project\archive-django\processing\views.py", line 24, in upload_list
+    return render(request, 'uploads/index.html', {'uploads': uploads})
+  File "C:\project\archive-django\venv\Lib\site-packages\django\shortcuts.py", line 25, in render
+    content = loader.render_to_string(template_name, context, request, using=using)
+  File "C:\project\archive-django\venv\Lib\site-packages\django\template\loader.py", line 61, in render_to_string
+    template = get_template(template_name, using=using)
+  File "C:\project\archive-django\venv\Lib\site-packages\django\template\loader.py", line 19, in get_template
+    raise TemplateDoesNotExist(template_name, chain=chain)
+django.template.exceptions.TemplateDoesNotExist: uploads/index.html
+C:\project\archive-django\processing\views.py changed, reloading.
+Watching for file changes with StatReloader
+Redis connection failed, falling back to cache: This backend does not support this feature
+Internal Server Error: /uploads/
+Traceback (most recent call last):
+  File "C:\project\archive-django\venv\Lib\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+  File "C:\project\archive-django\venv\Lib\site-packages\django\core\handlers\base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+  File "C:\project\archive-django\venv\Lib\site-packages\django\contrib\auth\decorators.py", line 59, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+  File "C:\project\archive-django\processing\views.py", line 24, in upload_list
+    return render(request, 'uploads/list.html', {'uploads': uploads})
+  File "C:\project\archive-django\venv\Lib\site-packages\django\shortcuts.py", line 25, in render
+    content = loader.render_to_string(template_name, context, request, using=using)
+  File "C:\project\archive-django\venv\Lib\site-packages\django\template\loader.py", line 62, in render_to_string
+    return template.render(context, request)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "C:\project\archive-django\venv\Lib\site-packages\django\template\backends\django.py", line 107, in render
+    return self.template.render(context)
+           ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\project\archive-django\venv\Lib\site-packages\django\template\base.py", line 171, in render
+    return self._render(context)
+           ~~~~~~~~~~~~^^^^^^^^^
+  File "C:\project\archive-django\venv\Lib\site-packages\django\template\base.py", line 163, in _render
+    return self.nodelist.render(context)
+           ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\project\archive-django\venv\Lib\site-packages\django\template\base.py", line 1016, in render
+    return SafeString("".join([node.render_annotated(context) for node in self]))
+                               ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\project\archive-django\venv\Lib\site-packages\django\template\base.py", line 977, in render_annotated
+    return self.render(context)
+           ~~~~~~~~~~~^^^^^^^^^
+  File "C:\project\archive-django\venv\Lib\site-packages\django\template\loader_tags.py", line 159, in render
+    return compiled_parent._render(context)
+           ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\project\archive-django\venv\Lib\site-packages\django\template\base.py", line 163, in _render
+    return self.nodelist.render(context)
+           ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\project\archive-django\venv\Lib\site-packages\django\template\base.py", line 1016, in render
+    return SafeString("".join([node.render_annotated(context) for node in self]))
+                               ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\project\archive-django\venv\Lib\site-packages\django\template\base.py", line 977, in render_annotated
+    return self.render(context)
+           ~~~~~~~~~~~^^^^^^^^^
+  File "C:\project\archive-django\venv\Lib\site-packages\django\template\loader_tags.py", line 65, in render
+    result = block.nodelist.render(context)
+  File "C:\project\archive-django\venv\Lib\site-packages\django\template\base.py", line 1016, in render
+    return SafeString("".join([node.render_annotated(context) for node in self]))
+                               ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\project\archive-django\venv\Lib\site-packages\django\template\base.py", line 977, in render_annotated
+    return self.render(context)
+           ~~~~~~~~~~~^^^^^^^^^
+  File "C:\project\archive-django\venv\Lib\site-packages\django\template\defaulttags.py", line 480, in render
+    url = reverse(view_name, args=args, kwargs=kwargs, current_app=current_app)
+  File "C:\project\archive-django\venv\Lib\site-packages\django\urls\base.py", line 98, in reverse
+    resolved_url = resolver._reverse_with_prefix(view, prefix, *args, **kwargs)
+  File "C:\project\archive-django\venv\Lib\site-packages\django\urls\resolvers.py", line 831, in _reverse_with_prefix
+    raise NoReverseMatch(msg)
+django.urls.exceptions.NoReverseMatch: Reverse for 'upload_create' not found. 'upload_create' is not a valid view function or pattern name.
+Internal Server Error: /uploads/
+Traceback (most recent call last):
+  File "C:\project\archive-django\venv\Lib\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+  File "C:\project\archive-django\venv\Lib\site-packages\django\core\handlers\base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+  File "C:\project\archive-django\venv\Lib\site-packages\django\contrib\auth\decorators.py", line 59, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+  File "C:\project\archive-django\processing\views.py", line 24, in upload_list
+    return render(request, 'uploads/list.html', {'uploads': uploads})
+  File "C:\project\archive-django\venv\Lib\site-packages\django\shortcuts.py", line 25, in render
+    content = loader.render_to_string(template_name, context, request, using=using)
+  File "C:\project\archive-django\venv\Lib\site-packages\django\template\loader.py", line 62, in render_to_string
+    return template.render(context, request)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "C:\project\archive-django\venv\Lib\site-packages\django\template\backends\django.py", line 107, in render
+    return self.template.render(context)
+           ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\project\archive-django\venv\Lib\site-packages\django\template\base.py", line 171, in render
+    return self._render(context)
+           ~~~~~~~~~~~~^^^^^^^^^
+  File "C:\project\archive-django\venv\Lib\site-packages\django\template\base.py", line 163, in _render
+    return self.nodelist.render(context)
+           ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\project\archive-django\venv\Lib\site-packages\django\template\base.py", line 1016, in render
+    return SafeString("".join([node.render_annotated(context) for node in self]))
+                               ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\project\archive-django\venv\Lib\site-packages\django\template\base.py", line 977, in render_annotated
+    return self.render(context)
+           ~~~~~~~~~~~^^^^^^^^^
+  File "C:\project\archive-django\venv\Lib\site-packages\django\template\loader_tags.py", line 159, in render
+    return compiled_parent._render(context)
+           ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\project\archive-django\venv\Lib\site-packages\django\template\base.py", line 163, in _render
+    return self.nodelist.render(context)
+           ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\project\archive-django\venv\Lib\site-packages\django\template\base.py", line 1016, in render
+    return SafeString("".join([node.render_annotated(context) for node in self]))
+                               ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\project\archive-django\venv\Lib\site-packages\django\template\base.py", line 977, in render_annotated
+    return self.render(context)
+           ~~~~~~~~~~~^^^^^^^^^
+  File "C:\project\archive-django\venv\Lib\site-packages\django\template\loader_tags.py", line 65, in render
+    result = block.nodelist.render(context)
+  File "C:\project\archive-django\venv\Lib\site-packages\django\template\base.py", line 1016, in render
+    return SafeString("".join([node.render_annotated(context) for node in self]))
+                               ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\project\archive-django\venv\Lib\site-packages\django\template\base.py", line 977, in render_annotated
+    return self.render(context)
+           ~~~~~~~~~~~^^^^^^^^^
+  File "C:\project\archive-django\venv\Lib\site-packages\django\template\defaulttags.py", line 243, in render
+    nodelist.append(node.render_annotated(context))
+                    ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\project\archive-django\venv\Lib\site-packages\django\template\base.py", line 977, in render_annotated
+    return self.render(context)
+           ~~~~~~~~~~~^^^^^^^^^
+  File "C:\project\archive-django\venv\Lib\site-packages\django\template\defaulttags.py", line 480, in render
+    url = reverse(view_name, args=args, kwargs=kwargs, current_app=current_app)
+  File "C:\project\archive-django\venv\Lib\site-packages\django\urls\base.py", line 98, in reverse
+    resolved_url = resolver._reverse_with_prefix(view, prefix, *args, **kwargs)
+  File "C:\project\archive-django\venv\Lib\site-packages\django\urls\resolvers.py", line 831, in _reverse_with_prefix
+    raise NoReverseMatch(msg)
+django.urls.exceptions.NoReverseMatch: Reverse for 'upload_detail' not found. 'upload_detail' is not a valid view function or pattern name.
+Internal Server Error: /uploads/5/delete/
+Traceback (most recent call last):
+  File "C:\project\archive-django\venv\Lib\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+  File "C:\project\archive-django\venv\Lib\site-packages\django\core\handlers\base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+  File "C:\project\archive-django\venv\Lib\site-packages\django\contrib\auth\decorators.py", line 59, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+  File "C:\project\archive-django\processing\views.py", line 127, in upload_delete
+    for group in upload.groups.all():
+                 ^^^^^^^^^^^^^
+AttributeError: 'Upload' object has no attribute 'groups'. Did you mean: 'group_set'?
+Internal Server Error: /uploads/6/delete/
+Traceback (most recent call last):
+  File "C:\project\archive-django\venv\Lib\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+  File "C:\project\archive-django\venv\Lib\site-packages\django\core\handlers\base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+  File "C:\project\archive-django\venv\Lib\site-packages\django\contrib\auth\decorators.py", line 59, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+  File "C:\project\archive-django\processing\views.py", line 127, in upload_delete
+    for group in upload.groups.all():
+                 ^^^^^^^^^^^^^
+AttributeError: 'Upload' object has no attribute 'groups'. Did you mean: 'group_set'?
+Internal Server Error: /uploads/8/delete/
+Traceback (most recent call last):
+  File "C:\project\archive-django\venv\Lib\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+  File "C:\project\archive-django\venv\Lib\site-packages\django\core\handlers\base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+  File "C:\project\archive-django\venv\Lib\site-packages\django\contrib\auth\decorators.py", line 59, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+  File "C:\project\archive-django\processing\views.py", line 127, in upload_delete
+    for group in upload.groups.all():
+                 ^^^^^^^^^^^^^
+AttributeError: 'Upload' object has no attribute 'groups'. Did you mean: 'group_set'?
+Internal Server Error: /uploads/6/delete/
+Traceback (most recent call last):
+  File "C:\project\archive-django\venv\Lib\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+  File "C:\project\archive-django\venv\Lib\site-packages\django\core\handlers\base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+  File "C:\project\archive-django\venv\Lib\site-packages\django\contrib\auth\decorators.py", line 59, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+  File "C:\project\archive-django\processing\views.py", line 127, in upload_delete
+    for group in upload.groups.all():
+                 ^^^^^^^^^^^^^
+AttributeError: 'Upload' object has no attribute 'groups'. Did you mean: 'group_set'?
+Internal Server Error: /uploads/7/delete/
+Traceback (most recent call last):
+  File "C:\project\archive-django\venv\Lib\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+  File "C:\project\archive-django\venv\Lib\site-packages\django\core\handlers\base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+  File "C:\project\archive-django\venv\Lib\site-packages\django\contrib\auth\decorators.py", line 59, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+  File "C:\project\archive-django\processing\views.py", line 127, in upload_delete
+    for group in upload.groups.all():
+                 ^^^^^^^^^^^^^
+AttributeError: 'Upload' object has no attribute 'groups'. Did you mean: 'group_set'?
+Internal Server Error: /uploads/4/delete/
+Traceback (most recent call last):
+  File "C:\project\archive-django\venv\Lib\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+  File "C:\project\archive-django\venv\Lib\site-packages\django\core\handlers\base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+  File "C:\project\archive-django\venv\Lib\site-packages\django\contrib\auth\decorators.py", line 59, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+  File "C:\project\archive-django\processing\views.py", line 127, in upload_delete
+    for group in upload.groups.all():
+                 ^^^^^^^^^^^^^
+AttributeError: 'Upload' object has no attribute 'groups'. Did you mean: 'group_set'?
+Internal Server Error: /uploads/5/delete/
+Traceback (most recent call last):
+  File "C:\project\archive-django\venv\Lib\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+  File "C:\project\archive-django\venv\Lib\site-packages\django\core\handlers\base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+  File "C:\project\archive-django\venv\Lib\site-packages\django\contrib\auth\decorators.py", line 59, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+  File "C:\project\archive-django\processing\views.py", line 127, in upload_delete
+    for group in upload.groups.all():
+                 ^^^^^^^^^^^^^
+AttributeError: 'Upload' object has no attribute 'groups'. Did you mean: 'group_set'?
+Internal Server Error: /uploads/3/delete/
+Traceback (most recent call last):
+  File "C:\project\archive-django\venv\Lib\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+  File "C:\project\archive-django\venv\Lib\site-packages\django\core\handlers\base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+  File "C:\project\archive-django\venv\Lib\site-packages\django\contrib\auth\decorators.py", line 59, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+  File "C:\project\archive-django\processing\views.py", line 127, in upload_delete
+    for group in upload.groups.all():
+                 ^^^^^^^^^^^^^
+AttributeError: 'Upload' object has no attribute 'groups'. Did you mean: 'group_set'?
+Internal Server Error: /uploads/6/delete/
+Traceback (most recent call last):
+  File "C:\project\archive-django\venv\Lib\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+  File "C:\project\archive-django\venv\Lib\site-packages\django\core\handlers\base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+  File "C:\project\archive-django\venv\Lib\site-packages\django\contrib\auth\decorators.py", line 59, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+  File "C:\project\archive-django\processing\views.py", line 127, in upload_delete
+    for group in upload.groups.all():
+                 ^^^^^^^^^^^^^
+AttributeError: 'Upload' object has no attribute 'groups'. Did you mean: 'group_set'?
+Internal Server Error: /uploads/2/delete/
+Traceback (most recent call last):
+  File "C:\project\archive-django\venv\Lib\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+  File "C:\project\archive-django\venv\Lib\site-packages\django\core\handlers\base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+  File "C:\project\archive-django\venv\Lib\site-packages\django\contrib\auth\decorators.py", line 59, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+  File "C:\project\archive-django\processing\views.py", line 127, in upload_delete
+    for group in upload.groups.all():
+                 ^^^^^^^^^^^^^
+AttributeError: 'Upload' object has no attribute 'groups'. Did you mean: 'group_set'?
+Internal Server Error: /uploads/1/delete/
+Traceback (most recent call last):
+  File "C:\project\archive-django\venv\Lib\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+  File "C:\project\archive-django\venv\Lib\site-packages\django\core\handlers\base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+  File "C:\project\archive-django\venv\Lib\site-packages\django\contrib\auth\decorators.py", line 59, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+  File "C:\project\archive-django\processing\views.py", line 127, in upload_delete
+    for group in upload.groups.all():
+                 ^^^^^^^^^^^^^
+AttributeError: 'Upload' object has no attribute 'groups'. Did you mean: 'group_set'?
+Not Found: /uploads/multi/delete/
+Not Found: /uploads/multi/delete/
+Internal Server Error: /uploads/1/delete/
+Traceback (most recent call last):
+  File "C:\project\archive-django\venv\Lib\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+  File "C:\project\archive-django\venv\Lib\site-packages\django\core\handlers\base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+  File "C:\project\archive-django\venv\Lib\site-packages\django\contrib\auth\decorators.py", line 59, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+  File "C:\project\archive-django\processing\views.py", line 127, in upload_delete
+    for group in upload.groups.all():
+                 ^^^^^^^^^^^^^
+AttributeError: 'Upload' object has no attribute 'groups'. Did you mean: 'group_set'?
+Not Found: /uploads/multi/delete/
+Internal Server Error: /uploads/1/delete/
+Traceback (most recent call last):
+  File "C:\project\archive-django\venv\Lib\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+  File "C:\project\archive-django\venv\Lib\site-packages\django\core\handlers\base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+  File "C:\project\archive-django\venv\Lib\site-packages\django\contrib\auth\decorators.py", line 59, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+  File "C:\project\archive-django\processing\views.py", line 127, in upload_delete
+    for group in upload.groups.all():
+                 ^^^^^^^^^^^^^
+AttributeError: 'Upload' object has no attribute 'groups'. Did you mean: 'group_set'?
+Not Found: /uploads/multi/delete/
+Internal Server Error: /uploads/1/delete/
+Traceback (most recent call last):
+  File "C:\project\archive-django\venv\Lib\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+  File "C:\project\archive-django\venv\Lib\site-packages\django\core\handlers\base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+  File "C:\project\archive-django\venv\Lib\site-packages\django\contrib\auth\decorators.py", line 59, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+  File "C:\project\archive-django\processing\views.py", line 127, in upload_delete
+    for group in upload.groups.all():
+                 ^^^^^^^^^^^^^
+AttributeError: 'Upload' object has no attribute 'groups'. Did you mean: 'group_set'?
+Internal Server Error: /uploads/1/delete/
+Traceback (most recent call last):
+  File "C:\project\archive-django\venv\Lib\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+  File "C:\project\archive-django\venv\Lib\site-packages\django\core\handlers\base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+  File "C:\project\archive-django\venv\Lib\site-packages\django\contrib\auth\decorators.py", line 59, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+  File "C:\project\archive-django\processing\views.py", line 127, in upload_delete
+    for group in upload.groups.all():
+                 ^^^^^^^^^^^^^
+AttributeError: 'Upload' object has no attribute 'groups'. Did you mean: 'group_set'?
+Internal Server Error: /uploads/1/delete/
+Traceback (most recent call last):
+  File "C:\project\archive-django\venv\Lib\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+  File "C:\project\archive-django\venv\Lib\site-packages\django\core\handlers\base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+  File "C:\project\archive-django\venv\Lib\site-packages\django\contrib\auth\decorators.py", line 59, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+  File "C:\project\archive-django\processing\views.py", line 127, in upload_delete
+    for group in upload.groups.all():
+                 ^^^^^^^^^^^^^
+AttributeError: 'Upload' object has no attribute 'groups'. Did you mean: 'group_set'?
+Internal Server Error: /uploads/1/delete/
+Traceback (most recent call last):
+  File "C:\project\archive-django\venv\Lib\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+  File "C:\project\archive-django\venv\Lib\site-packages\django\core\handlers\base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+  File "C:\project\archive-django\venv\Lib\site-packages\django\contrib\auth\decorators.py", line 59, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+  File "C:\project\archive-django\processing\views.py", line 127, in upload_delete
+    for group in upload.groups.all():
+                 ^^^^^^^^^^^^^
+AttributeError: 'Upload' object has no attribute 'groups'. Did you mean: 'group_set'?
+Internal Server Error: /uploads/1/delete/
+Traceback (most recent call last):
+  File "C:\project\archive-django\venv\Lib\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+  File "C:\project\archive-django\venv\Lib\site-packages\django\core\handlers\base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+  File "C:\project\archive-django\venv\Lib\site-packages\django\contrib\auth\decorators.py", line 59, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+  File "C:\project\archive-django\processing\views.py", line 127, in upload_delete
+    for group in upload.groups.all():
+                 ^^^^^^^^^^^^^
+AttributeError: 'Upload' object has no attribute 'groups'. Did you mean: 'group_set'?
+Internal Server Error: /uploads/1/delete/
+Traceback (most recent call last):
+  File "C:\project\archive-django\venv\Lib\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+  File "C:\project\archive-django\venv\Lib\site-packages\django\core\handlers\base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+  File "C:\project\archive-django\venv\Lib\site-packages\django\contrib\auth\decorators.py", line 59, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+  File "C:\project\archive-django\processing\views.py", line 127, in upload_delete
+    for group in upload.groups.all():
+                 ^^^^^^^^^^^^^
+AttributeError: 'Upload' object has no attribute 'groups'. Did you mean: 'group_set'?
+Internal Server Error: /uploads/1/delete/
+Traceback (most recent call last):
+  File "C:\project\archive-django\venv\Lib\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+  File "C:\project\archive-django\venv\Lib\site-packages\django\core\handlers\base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+  File "C:\project\archive-django\venv\Lib\site-packages\django\contrib\auth\decorators.py", line 59, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+  File "C:\project\archive-django\processing\views.py", line 127, in upload_delete
+    for group in upload.groups.all():
+                 ^^^^^^^^^^^^^
+AttributeError: 'Upload' object has no attribute 'groups'. Did you mean: 'group_set'?
+Internal Server Error: /uploads/1/delete/
+Traceback (most recent call last):
+  File "C:\project\archive-django\venv\Lib\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+  File "C:\project\archive-django\venv\Lib\site-packages\django\core\handlers\base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+  File "C:\project\archive-django\venv\Lib\site-packages\django\contrib\auth\decorators.py", line 59, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+  File "C:\project\archive-django\processing\views.py", line 127, in upload_delete
+    for group in upload.groups.all():
+                 ^^^^^^^^^^^^^
+AttributeError: 'Upload' object has no attribute 'groups'. Did you mean: 'group_set'?
+Internal Server Error: /uploads/1/delete/
+Traceback (most recent call last):
+  File "C:\project\archive-django\venv\Lib\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+  File "C:\project\archive-django\venv\Lib\site-packages\django\core\handlers\base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+  File "C:\project\archive-django\venv\Lib\site-packages\django\contrib\auth\decorators.py", line 59, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+  File "C:\project\archive-django\processing\views.py", line 127, in upload_delete
+    for group in upload.groups.all():
+                 ^^^^^^^^^^^^^
+AttributeError: 'Upload' object has no attribute 'groups'. Did you mean: 'group_set'?
+Internal Server Error: /uploads/1/delete/
+Traceback (most recent call last):
+  File "C:\project\archive-django\venv\Lib\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+  File "C:\project\archive-django\venv\Lib\site-packages\django\core\handlers\base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+  File "C:\project\archive-django\venv\Lib\site-packages\django\contrib\auth\decorators.py", line 59, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+  File "C:\project\archive-django\processing\views.py", line 127, in upload_delete
+    for group in upload.groups.all():
+                 ^^^^^^^^^^^^^
+AttributeError: 'Upload' object has no attribute 'groups'. Did you mean: 'group_set'?
+Internal Server Error: /uploads/1/delete/
+Traceback (most recent call last):
+  File "C:\project\archive-django\venv\Lib\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+  File "C:\project\archive-django\venv\Lib\site-packages\django\core\handlers\base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+  File "C:\project\archive-django\venv\Lib\site-packages\django\contrib\auth\decorators.py", line 59, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+  File "C:\project\archive-django\processing\views.py", line 127, in upload_delete
+    for group in upload.groups.all():
+                 ^^^^^^^^^^^^^
+AttributeError: 'Upload' object has no attribute 'groups'. Did you mean: 'group_set'?
+Internal Server Error: /uploads/1/delete/
+Traceback (most recent call last):
+  File "C:\project\archive-django\venv\Lib\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+  File "C:\project\archive-django\venv\Lib\site-packages\django\core\handlers\base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+  File "C:\project\archive-django\venv\Lib\site-packages\django\contrib\auth\decorators.py", line 59, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+  File "C:\project\archive-django\processing\views.py", line 127, in upload_delete
+    for group in upload.groups.all():
+                 ^^^^^^^^^^^^^
+AttributeError: 'Upload' object has no attribute 'groups'. Did you mean: 'group_set'?
+Internal Server Error: /uploads/1/delete/
+Traceback (most recent call last):
+  File "C:\project\archive-django\venv\Lib\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+  File "C:\project\archive-django\venv\Lib\site-packages\django\core\handlers\base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+  File "C:\project\archive-django\venv\Lib\site-packages\django\contrib\auth\decorators.py", line 59, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+  File "C:\project\archive-django\processing\views.py", line 127, in upload_delete
+    for group in upload.groups.all():
+                 ^^^^^^^^^^^^^
+AttributeError: 'Upload' object has no attribute 'groups'. Did you mean: 'group_set'?
+Internal Server Error: /uploads/1/delete/
+Traceback (most recent call last):
+  File "C:\project\archive-django\venv\Lib\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+  File "C:\project\archive-django\venv\Lib\site-packages\django\core\handlers\base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+  File "C:\project\archive-django\venv\Lib\site-packages\django\contrib\auth\decorators.py", line 59, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+  File "C:\project\archive-django\processing\views.py", line 127, in upload_delete
+    for group in upload.groups.all():
+                 ^^^^^^^^^^^^^
+AttributeError: 'Upload' object has no attribute 'groups'. Did you mean: 'group_set'?
+Internal Server Error: /uploads/1/delete/
+Traceback (most recent call last):
+  File "C:\project\archive-django\venv\Lib\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+  File "C:\project\archive-django\venv\Lib\site-packages\django\core\handlers\base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+  File "C:\project\archive-django\venv\Lib\site-packages\django\contrib\auth\decorators.py", line 59, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+  File "C:\project\archive-django\processing\views.py", line 127, in upload_delete
+    for group in upload.groups.all():
+                 ^^^^^^^^^^^^^
+AttributeError: 'Upload' object has no attribute 'groups'. Did you mean: 'group_set'?
