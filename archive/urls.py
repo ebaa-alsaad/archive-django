@@ -79,7 +79,7 @@ urlpatterns = [
     path('logout/', LogoutView.as_view(next_page='/login/'), name='logout'),
     path('register/', views.register_view, name='register'),
 
-    # Dashboard
+    # Dashboard 
     path('dashboard/', views.dashboard_view, name='dashboard'),
 
     path('', include(('processing.urls', 'processing'), namespace='processing')),
