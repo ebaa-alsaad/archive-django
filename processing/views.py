@@ -7,6 +7,7 @@ from django.core.files.storage import default_storage
 from .models import Upload, Group
 from .services import BarcodeOCRService
 from django.conf import settings
+from django.contrib import messages
 
 import uuid
 import zipfile, os, io, logging 
@@ -181,13 +182,17 @@ def register_view(request):
         password = request.POST.get("password")
         password2 = request.POST.get("password2")
 
+        # التحقق من تطابق كلمة المرور
         if password != password2:
-            return JsonResponse({'message': 'كلمة المرور غير متطابقة.'}, status=400)
-        if User.objects.filter(username=username).exists():
-            return JsonResponse({'message': 'اسم المستخدم موجود مسبقاً.'}, status=400)
+            return JsonResponse({'success': False, 'message': 'كلمة المرور غير متطابقة.'})
 
+        # التحقق من اسم المستخدم موجود مسبقاً
+        if User.objects.filter(username=username).exists():
+            return JsonResponse({'success': False, 'message': 'اسم المستخدم موجود مسبقاً.'})
+
+        # إنشاء المستخدم وتسجيل الدخول
         user = User.objects.create_user(username=username, email=email, password=password)
         login(request, user)
-        return JsonResponse({'success': True})
+        return JsonResponse({'success': True, 'message': 'تم إنشاء الحساب بنجاح!', 'redirect_url': '/dashboard/'})
 
     return render(request, "auth/register.html")
