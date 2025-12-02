@@ -32,18 +32,23 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include
-from processing import views
+from django.views.generic import RedirectView
+from processing import views  # view functions: login_view, register_view, dashboard_view
+
+from django.contrib.auth.views import LogoutView
 
 urlpatterns = [
-     path('', RedirectView.as_view(url='/login/', permanent=False)),
+    path('', RedirectView.as_view(url='/login/', permanent=False)),
 
     path('admin/', admin.site.urls),
 
-    # Auth
+    # Authentication
     path('login/', views.login_view, name='login'),
     path('logout/', LogoutView.as_view(next_page='/login/'), name='logout'),
     path('register/', views.register_view, name='register'),
 
-    # Include processing app URLs
-    path('', include('processing.urls')),   # dashboard موجود داخل processing.urls
+    path('uploads/', include('processing.urls')),
+
+    # Dashboard
+    path('dashboard/', views.dashboard_view, name='dashboard'),
 ]
