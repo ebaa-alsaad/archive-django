@@ -35,12 +35,13 @@ from django.urls import path, include
 from processing import views
 
 urlpatterns = [
-    path('', RedirectView.as_view(url='/login/', permanent=False)),
+     path('', RedirectView.as_view(url='/login/', permanent=False)),
+
     path('admin/', admin.site.urls),
 
     # Auth
     path('login/', views.login_view, name='login'),
-    path('logout/', views.logout, {'next_page': 'login'}, name='logout'),
+    path('logout/', LogoutView.as_view(next_page='/login/'), name='logout'),
     path('register/', views.register_view, name='register'),
 
     # Include processing app URLs
