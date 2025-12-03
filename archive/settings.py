@@ -99,12 +99,30 @@ CACHES = {
 DATA_UPLOAD_MAX_MEMORY_SIZE = 1024 * 1024 * 1024
 FILE_UPLOAD_MAX_MEMORY_SIZE = 1024 * 1024 * 1024
 
+import os
+
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
-    'handlers': {
-        'console': {'class': 'logging.StreamHandler'},
-        'file': {'class': 'logging.FileHandler', 'filename': os.path.join(BASE_DIR, 'processing.log')},
+    'formatters': {
+        'verbose': {'format': '{levelname} {asctime} {module} {message}', 'style': '{'},
+        'simple': {'format': '{levelname} {message}', 'style': '{'},
     },
-    'loggers': {'': {'handlers': ['console', 'file'], 'level': 'INFO'}},
+    'handlers': {
+        'file': {
+            'level': 'DEBUG',
+            'class': 'logging.FileHandler',
+            'filename': os.path.join(BASE_DIR, 'debug.log'),  # هذا الملف ستتابع فيه الأخطاء
+            'formatter': 'verbose',
+        },
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'simple',
+        },
+    },
+    'loggers': {
+        'django': {'handlers': ['file', 'console'], 'level': 'DEBUG', 'propagate': True},
+        'processing': {'handlers': ['file', 'console'], 'level': 'DEBUG', 'propagate': True},
+    },
 }
+

@@ -7,13 +7,14 @@
         <i class="fa-solid fa-file-invoice ml-2 text-blue-600"></i> الملفات المرفوعة
     </h2>
 
-    <!-- Toast Center -->
-    <div id="toast-center" class="fixed inset-0 flex items-center justify-center z-50 pointer-events-none">
-        <div id="toast-message" class="bg-white shadow-lg rounded-xl px-6 py-4 flex items-center space-x-3 rtl:space-x-reverse opacity-0 transition-opacity duration-300">
+    <!-- Toast -->
+    <div id="toast" class="fixed top-4 right-4 z-50 pointer-events-none">
+        <div class="bg-white shadow-lg rounded-xl px-6 py-4 flex items-center space-x-3 rtl:space-x-reverse opacity-0 transition-opacity duration-300">
             <i class="fa-solid fa-check-circle text-green-500"></i>
             <span class="text-gray-800 font-semibold"></span>
         </div>
     </div>
+
 
     <!-- Delete Modal -->
     <div id="delete-modal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50">
@@ -60,7 +61,14 @@
                             </span>
                             {% endif %}
                         </td>
-                        <td class="py-3 px-4 text-center">{{ upload.total_pages }}</td>
+                        <td class="py-3 px-4 text-center">
+                            {% if upload.groups.count > 0 %}
+                                {{ upload.groups.count }}
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+
                         <td class="py-3 px-4 text-center">{{ upload.created_at|date:"Y-m-d H:i" }}</td>
                         <td class="py-3 px-4 flex justify-center space-x-2 rtl:space-x-reverse">
                             {% if upload.groups.count > 0 %}
@@ -101,9 +109,9 @@
 let deleteQueue = []; // لتخزين العناصر للحذف
 let currentMode = null; // 'single' أو 'multi'
 
-// توست مركزي
-function showToast(message) {
-    const toast = document.getElementById('toast-message');
+// توست 
+function showToast(message){
+    const toast = document.querySelector('#toast > div');
     toast.querySelector('span').innerText = message;
     toast.parentElement.classList.add('pointer-events-auto');
     toast.classList.add('opacity-100');
