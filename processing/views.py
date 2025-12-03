@@ -29,7 +29,7 @@ def upload_list(request):
 @login_required
 def upload_create(request):
     if request.method == 'POST':
-        files = request.FILES.getlist('file')
+        files = request.FILES.getlist('file[]')
         if not files:
             return JsonResponse({'success': False, 'message': 'لم يتم إرسال ملفات.'})
 
@@ -50,8 +50,6 @@ def upload_create(request):
             uploads.append(upload)
 
         return JsonResponse({'success': True, 'uploads': [{'id': u.id, 'name': u.original_filename} for u in uploads]})
-
-    return render(request, 'uploads/create.html')
 
 
 @login_required

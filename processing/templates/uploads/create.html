@@ -11,7 +11,7 @@
     <div id="upload-card" class="bg-white p-8 rounded-2xl shadow-xl border border-gray-100">
         <form id="upload-form" enctype="multipart/form-data">
             {% csrf_token %}
-            <input id="file-input" type="file" name="file" accept="application/pdf" class="hidden" multiple/>
+            <input id="file-input" type="file" name="file[]" accept="application/pdf" class="hidden" multiple/>
             <div id="drop-zone"
                  class="flex flex-col items-center justify-center w-full h-64 border-3 border-dashed border-gray-300 bg-gray-50 hover:bg-gray-100 rounded-2xl cursor-pointer transition-all">
                 <div class="text-center">
@@ -68,7 +68,7 @@ function renderFileList() {
                     <p class="font-semibold text-gray-800">${file.name}</p>
                     <p class="text-sm text-gray-500">${(file.size / 1024 / 1024).toFixed(2)} MB</p>
                 </div>
-                <button class="text-red-600 hover:text-red-800" onclick="removeFile(${index})">
+                <button type="button" class="text-red-600 hover:text-red-800" onclick="removeFile(${index})">
                     <i class="fa-solid fa-trash"></i>
                 </button>
             </div>
@@ -95,6 +95,7 @@ fileInput.addEventListener("change", () => {
     renderFileList();
     startBtn.disabled = selectedFiles.length === 0;
 });
+
 dropZone.addEventListener("click", () => fileInput.click());
 dropZone.addEventListener("dragover", (e) => { e.preventDefault(); dropZone.classList.add("bg-blue-50", "border-blue-500"); });
 dropZone.addEventListener("dragleave", () => { dropZone.classList.remove("bg-blue-50", "border-blue-500"); });
@@ -118,7 +119,7 @@ document.getElementById("upload-form").addEventListener("submit", async function
 
     for (let i = 0; i < selectedFiles.length; i++) {
         const formData = new FormData();
-        formData.append("file", selectedFiles[i]);
+        formData.append("file[]", selectedFiles[i]);
         formData.append("csrfmiddlewaretoken", document.querySelector('[name=csrfmiddlewaretoken]').value);
 
         try {
@@ -176,12 +177,12 @@ async function updateProgress() {
             if(data.progress < 100){
                 allCompleted = false;
             } else {
-                // رابط ZIP
+                // رابط ZIP لكل ملف
                 if(data.groups_count > 0 && !document.getElementById(`zip-link-${uploadId}`)){
                     const link = document.createElement('a');
                     link.href = `/uploads/${uploadId}/download_zip/`;
                     link.id = `zip-link-${uploadId}`;
-                    link.download = `groups_${uploadId}.zip`;
+                    link.download = `archive_${uploadId}.zip`;
                     link.textContent = `تحميل مجموعات الملف ${uploadId}`;
                     link.className = "block text-blue-700 font-bold mt-2";
                     resultsList.appendChild(link);
