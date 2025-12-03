@@ -162,7 +162,7 @@ document.getElementById("upload-form").addEventListener("submit", async function
 
     try {
         console.log('بدء رفع الملفات...');
-        const res = await fetch("{% url 'processing:upload_create' %}", {
+        const res = await fetch("/uploads/create/", {
             method: "POST",
             body: formData,
             // لا تضيف Content-Type header مع FormData، المتصفح يضيفه تلقائياً
