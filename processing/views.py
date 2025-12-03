@@ -9,7 +9,6 @@ from django.http import JsonResponse, FileResponse
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
 from django.contrib.auth import login, authenticate
-from django.utils import timezone
 from django.core.cache import cache
 from django.conf import settings
 from .models import Upload, Group
@@ -30,74 +29,79 @@ def upload_list(request):
 @login_required
 def upload_create(request):
 
-    # 1) طلب GET → أعرض صفحة الرفع
     if request.method == 'GET':
-        return render(request, 'uploads/create.html')   # عدّل اسم القالب حسب مشروعك
+        return render(request, 'uploads/create.html')  
 
-    # 2) طلب POST → ابدأ الرفع والمعالجة
-    if request.method == 'POST':
+    if request.method != 'POST':
+        logger.warning("upload_create: non-POST request", extra={'path': request.path})
+        return JsonResponse({'success': False, 'message': 'طريقة الطلب غير صحيحة.'}, status=400)
 
-        logger.debug("upload_create POST: FILE KEYS=%s", list(request.FILES.keys()))
+    logger.debug("upload_create: CONTENT_LENGTH=%s, CONTENT_TYPE=%s, META=%s",
+                 request.META.get('CONTENT_LENGTH'), request.META.get('CONTENT_TYPE'),
+                 {k: v for k, v in request.META.items() if k.startswith('HTTP_')})
 
-        files = request.FILES.getlist('file')
-        if not files:
-            return JsonResponse({'success': False, 'message': 'لم يتم إرسال ملفات.'}, status=400)
+    files = request.FILES.getlist('file')
+    if not files:
+        logger.warning("upload_create: no files in request.FILES keys=%s", list(request.FILES.keys()))
+        return JsonResponse({'success': False, 'message': 'لم يتم إرسال ملفات.'}, status=400)
 
-        uploads = []
-        service = BarcodeOCRService()
+    uploads = []
+    service = BarcodeOCRService()
 
-        for f in files:
+    for f in files:
+        try:
+            unique_name = f"{uuid.uuid4().hex}_{f.name}"
+            upload_path = Path(settings.PRIVATE_MEDIA_ROOT) / unique_name
+            upload_path.parent.mkdir(parents=True, exist_ok=True)
+
+            logger.info("Saving upload file: name=%s size=%s", f.name, getattr(f, 'size', 'unknown'))
+
+            with open(upload_path, 'wb+') as dest:
+                for chunk in f.chunks():
+                    dest.write(chunk)
+
+            upload = Upload.objects.create(
+                user=request.user,
+                original_filename=f.name,
+                stored_filename=unique_name,
+                status='pending'
+            )
+            uploads.append(upload)
+
+            # تعيين الحالة → processing
+            upload.status = 'processing'
+            upload.save(update_fields=['status'])
+
             try:
-                unique_name = f"{uuid.uuid4().hex}_{f.name}"
-                upload_path = Path(settings.PRIVATE_MEDIA_ROOT) / unique_name
-                upload_path.parent.mkdir(parents=True, exist_ok=True)
+                if hasattr(service, 'process_single_pdf'):
+                    service.process_single_pdf(upload)
+                else:
+                    service.process_pdf(upload)
 
-                logger.info("Saving upload file: %s (%s bytes)", f.name, f.size)
+                upload.set_completed()
 
-                # حفظ الملف
-                with open(upload_path, 'wb+') as dest:
-                    for chunk in f.chunks():
-                        dest.write(chunk)
+            except Exception as exc_proc:
+                upload.status = 'failed'
+                upload.message = str(exc_proc)
+                upload.save(update_fields=['status', 'message'])
+                logger.exception("Processing failed for upload %s: %s", upload.id, exc_proc)
 
-                # حفظ في الداتابيس
-                upload = Upload.objects.create(
-                    user=request.user,
-                    original_filename=f.name,
-                    stored_filename=unique_name,
-                    status='processing'
-                )
-                uploads.append(upload)
+        except Exception as e:
+            logger.exception("upload_create: failed while handling file %s", getattr(f, 'name', 'unknown'))
+            return JsonResponse({
+                'success': False,
+                'message': 'خطأ أثناء حفظ الملف أو المعالجة.',
+                'detail': str(e),
+                'trace': traceback.format_exc()
+            }, status=500)
 
-                # المعالجة
-                try:
-                    if hasattr(service, 'process_single_pdf'):
-                        service.process_single_pdf(upload)
-                    else:
-                        service.process_pdf(upload)
-
-                    upload.set_completed()
-
-                except Exception as proc_err:
-                    upload.status = 'failed'
-                    upload.message = str(proc_err)
-                    upload.save(update_fields=['status', 'message'])
-                    logger.exception("Processing failed: %s", proc_err)
-
-            except Exception as e:
-                logger.exception("upload_create ERROR on file save: %s", f.name)
-                return JsonResponse({
-                    'success': False,
-                    'message': 'خطأ أثناء رفع الملف أو معالجته.',
-                    'detail': str(e)
-                }, status=500)
-
-        return JsonResponse({
-            'success': True,
-            'uploads': [{'id': u.id, 'name': u.original_filename} for u in uploads]
-        })
-
-    # أي شيء غير GET و POST
-    return JsonResponse({'success': False, 'message': 'طريقة الطلب غير مسموح بها.'}, status=405)
+    return JsonResponse({
+        'success': True,
+        'uploads': [
+            {'id': u.id, 'name': u.original_filename}
+            for u in uploads
+        ]
+    })
 
 
 @login_required
@@ -183,7 +187,7 @@ def download_zip(request, upload_id):
                 if group_file.exists():
                     zipf.write(group_file, arcname=group_file.name)
 
-    zip_filename = f"archive_{upload.original_filename}_{timezone.now().strftime('%Y%m%d')}.zip"
+    zip_filename = f"archive_{upload.original_filename}.zip"
     return FileResponse(open(zip_path, 'rb'), as_attachment=True, filename=zip_filename)
 
 @login_required

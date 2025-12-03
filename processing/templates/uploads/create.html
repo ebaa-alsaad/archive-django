@@ -50,8 +50,7 @@ function uploadFile(file){
     const formData = new FormData();
     formData.append('file', file);
 
-    fetch("/uploads/create/", {
-
+    fetch("{% url 'processing:upload_create' %}", {
         method: 'POST',
         body: formData,
         headers: { 'X-CSRFToken': csrftoken }
@@ -92,7 +91,6 @@ function uploadFile(file){
         bar.style.background = 'red';
     });
 }
-
 </script>
 
 <style>
