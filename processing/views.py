@@ -5,7 +5,7 @@ from django.contrib.auth.models import User
 from django.contrib.auth import login, authenticate, logout
 from django.core.files.storage import default_storage
 from django.core.files.base import ContentFile
-from .models import Upload, Group, ProcessingTask
+from .models import Upload, Group
 from .services import PDFProcessingService
 from django.utils import timezone
 from django.core.cache import cache
