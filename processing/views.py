@@ -6,7 +6,7 @@ from django.contrib.auth import login, authenticate, logout
 from django.core.files.storage import default_storage
 from django.core.files.base import ContentFile
 from .models import Upload, Group
-from .services import PDFProcessingService
+from .services import BarcodeOCRService
 from django.utils import timezone
 from django.core.cache import cache
 from .tasks import process_pdf_task, create_zip_task

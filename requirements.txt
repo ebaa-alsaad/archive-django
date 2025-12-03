@@ -1,6 +1,5 @@
 # الأساسيات
 Django==5.2.8
-celery==5.3.6
 redis==5.0.1
 django-redis==5.3.0
 
@@ -17,5 +16,3 @@ pyzbar==0.1.9
 
 # إضافات
 python-magic==0.4.27
-django-celery-results==2.5.1
-django-celery-beat==2.5.0
