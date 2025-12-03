@@ -1,21 +1,17 @@
 from django.shortcuts import render, get_object_or_404, redirect 
-from django.http import JsonResponse, FileResponse, HttpResponse
+from django.http import JsonResponse, FileResponse
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
-from django.contrib.auth import login, authenticate, logout
-from django.core.files.storage import default_storage
-from django.core.files.base import ContentFile
+from django.contrib.auth import login, authenticate
 from .models import Upload, Group
 from .services import BarcodeOCRService
 from django.utils import timezone
 from django.core.cache import cache
-from .tasks import process_pdf_task, create_zip_task
 from django.conf import settings
-from django.contrib import messages
-import json
 import uuid
-import zipfile, os, io, logging 
+import os
 from pathlib import Path
+import logging
 
 logger = logging.getLogger(__name__)
 
@@ -59,8 +55,18 @@ def upload_create(request):
             )
             uploads.append(upload)
             
-            # بدء المعالجة الخلفية
-            process_pdf_task.delay(upload.id)
+            # معالجة الملف مباشرة بدون Celery
+            try:
+                upload.status = 'processing'
+                upload.save(update_fields=['status'])
+                service = BarcodeOCRService()
+                created_groups = service.process_pdf(upload)
+                upload.set_completed()
+            except Exception as e:
+                logger.error(f"Processing failed for upload {upload.id}: {e}")
+                upload.status = 'failed'
+                upload.message = str(e)
+                upload.save(update_fields=['status', 'message'])
 
         return JsonResponse({
             'success': True,
@@ -106,40 +112,7 @@ def download_file(request, upload_id):
 
 
 @login_required
-def process_upload(request, upload_id):
-    """بدء معالجة يدوية للرفع"""
-    upload = get_object_or_404(Upload, id=upload_id, user=request.user)
-    
-    if upload.status == 'processing':
-        return JsonResponse({
-            'success': False,
-            'error': 'جاري معالجة الملف بالفعل'
-        })
-    
-    if upload.status == 'completed':
-        return JsonResponse({
-            'success': True,
-            'message': 'تم معالجة الملف مسبقاً',
-            'groups_count': upload.groups.count()
-        })
-    
-    # تحديث الحالة
-    upload.status = 'processing'
-    upload.save(update_fields=['status'])
-    
-    # بدء المهمة الخلفية
-    task = process_pdf_task.delay(upload.id)
-    
-    return JsonResponse({
-        'success': True,
-        'message': 'بدأت المعالجة',
-        'task_id': task.id
-    })
-
-
-@login_required
 def check_status(request, upload_id):
-    """التحقق من حالة المعالجة"""
     upload = get_object_or_404(Upload, id=upload_id, user=request.user)
     
     # جلب التقدم من cache إذا موجود
@@ -166,83 +139,7 @@ def check_status(request, upload_id):
 
 
 @login_required
-def download_zip(request, upload_id):
-    """تحميل ملف ZIP"""
-    upload = get_object_or_404(Upload, id=upload_id, user=request.user)
-    
-    if upload.status != 'completed' or upload.groups.count() == 0:
-        return JsonResponse({'success': False, 'error': 'لا يمكن تحميل ZIP الآن'})
-    
-    # التحقق من وجود ملف ZIP أو إنشاء واحد جديد
-    cache_key = f"upload_{upload_id}_zip_path"
-    zip_path = cache.get(cache_key)
-    
-    if not zip_path or not os.path.exists(zip_path):
-        # إنشاء ZIP جديد
-        result = create_zip_task.delay(upload_id)
-        # الانتظار حتى يكتمل (في الإنتاج استخدم polling)
-        import time
-        for _ in range(10):  # 10 محاولات
-            if os.path.exists(zip_path):
-                break
-            time.sleep(1)
-    
-    zip_path = Path(zip_path) if zip_path else None
-    
-    if not zip_path or not zip_path.exists():
-        # إنشاء ZIP مباشرة
-        from .tasks import create_zip_task
-        result = create_zip_task(upload_id)
-        if not result['success']:
-            return JsonResponse({'success': False, 'error': result['error']})
-        zip_path = Path(result['zip_path'])
-    
-    if not zip_path.exists():
-        return JsonResponse({'success': False, 'error': 'ملف ZIP غير موجود'})
-    
-    # اسم ملف ZIP
-    zip_filename = f"archive_{upload.original_filename}_{timezone.now().strftime('%Y%m%d')}.zip"
-    
-    response = FileResponse(open(zip_path, 'rb'))
-    response['Content-Type'] = 'application/zip'
-    response['Content-Disposition'] = f'attachment; filename="{zip_filename}"'
-    
-    return response
-
-
-@login_required
-def upload_delete(request, upload_id):
-    """حذف رفع"""
-    upload = get_object_or_404(Upload, id=upload_id, user=request.user)
-    
-    # حذف الملفات
-    try:
-        original_path = upload.get_absolute_path()
-        if os.path.exists(original_path):
-            os.remove(original_path)
-        
-        # حذف مجموعات PDF
-        for group in upload.groups.all():
-            if group.pdf_path:
-                group_path = Path(settings.PRIVATE_MEDIA_ROOT) / group.pdf_path
-                if os.path.exists(group_path):
-                    os.remove(group_path)
-    
-    except Exception as e:
-        logger.warning(f"Failed to delete files for upload {upload_id}: {e}")
-    
-    # حذف السجلات
-    upload.delete()
-    
-    return JsonResponse({
-        'success': True,
-        'message': 'تم الحذف بنجاح'
-    })
-
-
-@login_required
 def download_group_file(request, upload_id, group_id):
-    """تحميل ملف مجموعة معينة"""
     upload = get_object_or_404(Upload, id=upload_id, user=request.user)
     group = get_object_or_404(Group, id=group_id, upload=upload)
     
@@ -262,6 +159,29 @@ def download_group_file(request, upload_id, group_id):
     )
 
 
+@login_required
+def upload_delete(request, upload_id):
+    upload = get_object_or_404(Upload, id=upload_id, user=request.user)
+    
+    try:
+        original_path = upload.get_absolute_path()
+        if os.path.exists(original_path):
+            os.remove(original_path)
+        
+        for group in upload.groups.all():
+            if group.pdf_path:
+                group_path = Path(settings.PRIVATE_MEDIA_ROOT) / group.pdf_path
+                if os.path.exists(group_path):
+                    os.remove(group_path)
+    
+    except Exception as e:
+        logger.warning(f"Failed to delete files for upload {upload_id}: {e}")
+    
+    upload.delete()
+    
+    return JsonResponse({'success': True, 'message': 'تم الحذف بنجاح'})
+
+
 # ============================
 # Dashboard
 # ============================
@@ -271,7 +191,6 @@ def dashboard_view(request):
     uploads_count = Upload.objects.filter(user=request.user).count()
     groups_count = Group.objects.filter(user=request.user).count()
     
-    # إحصائيات التقدم
     processing_uploads = Upload.objects.filter(user=request.user, status='processing').count()
     completed_uploads = Upload.objects.filter(user=request.user, status='completed').count()
     
@@ -296,7 +215,7 @@ def login_view(request):
         username = request.POST.get('username') or request.POST.get('email')
         password = request.POST.get('password')
         user = authenticate(request, username=username, password=password)
-        if user is not None:
+        if user:
             login(request, user)
             if request.headers.get('x-requested-with') == 'XMLHttpRequest':
                 return JsonResponse({'success': True})
@@ -315,15 +234,12 @@ def register_view(request):
         password = request.POST.get("password")
         password2 = request.POST.get("password2")
 
-        # التحقق من تطابق كلمة المرور
         if password != password2:
             return JsonResponse({'success': False, 'message': 'كلمة المرور غير متطابقة.'})
 
-        # التحقق من اسم المستخدم موجود مسبقاً
         if User.objects.filter(username=username).exists():
             return JsonResponse({'success': False, 'message': 'اسم المستخدم موجود مسبقاً.'})
 
-        # إنشاء المستخدم وتسجيل الدخول
         user = User.objects.create_user(username=username, email=email, password=password)
         login(request, user)
         return JsonResponse({'success': True, 'message': 'تم إنشاء الحساب بنجاح!', 'redirect_url': '/dashboard/'})
