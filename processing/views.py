@@ -29,67 +29,75 @@ def upload_list(request):
 
 @login_required
 def upload_create(request):
-    
-    # لوق لمساعدة التشخيص
-    logger.debug("upload_create: CONTENT_LENGTH=%s, CONTENT_TYPE=%s, META=%s",
-                 request.META.get('CONTENT_LENGTH'), request.META.get('CONTENT_TYPE'),
-                 {k: v for k, v in request.META.items() if k.startswith('HTTP_')})
 
-    files = request.FILES.getlist('file')
-    if not files:
-        logger.warning("upload_create: no files in request.FILES keys=%s", list(request.FILES.keys()))
-        return JsonResponse({'success': False, 'message': 'لم يتم إرسال ملفات.'}, status=400)
+    # 1) طلب GET → أعرض صفحة الرفع
+    if request.method == 'GET':
+        return render(request, 'uploads/create.html')   # عدّل اسم القالب حسب مشروعك
 
-    uploads = []
-    service = BarcodeOCRService()
+    # 2) طلب POST → ابدأ الرفع والمعالجة
+    if request.method == 'POST':
 
-    for f in files:
-        try:
-            unique_name = f"{uuid.uuid4().hex}_{f.name}"
-            upload_path = Path(settings.PRIVATE_MEDIA_ROOT) / unique_name
-            upload_path.parent.mkdir(parents=True, exist_ok=True)
+        logger.debug("upload_create POST: FILE KEYS=%s", list(request.FILES.keys()))
 
-            # سجل حجم الملف
-            logger.info("Saving upload file: name=%s size=%s", f.name, getattr(f, 'size', 'unknown'))
+        files = request.FILES.getlist('file')
+        if not files:
+            return JsonResponse({'success': False, 'message': 'لم يتم إرسال ملفات.'}, status=400)
 
-            with open(upload_path, 'wb+') as dest:
-                for chunk in f.chunks():
-                    dest.write(chunk)
+        uploads = []
+        service = BarcodeOCRService()
 
-            upload = Upload.objects.create(
-                user=request.user,
-                original_filename=f.name,
-                stored_filename=unique_name,
-                status='pending'
-            )
-            uploads.append(upload)
-
-            # معالجة متزامنة (يمكن تحويلها لاحقاً لثريد أو مهمة خلفية)
-            upload.status = 'processing'
-            upload.save(update_fields=['status'])
+        for f in files:
             try:
-                # بعض الإصدارات من السيرفيس قد تطلق process_pdf أو process_single_pdf
-                if hasattr(service, 'process_single_pdf'):
-                    service.process_single_pdf(upload)
-                else:
-                    service.process_pdf(upload)
-                upload.set_completed()
-            except Exception as exc_proc:
-                upload.status = 'failed'
-                upload.message = str(exc_proc)
-                upload.save(update_fields=['status', 'message'])
-                logger.exception("Processing failed for upload %s: %s", upload.id, exc_proc)
+                unique_name = f"{uuid.uuid4().hex}_{f.name}"
+                upload_path = Path(settings.PRIVATE_MEDIA_ROOT) / unique_name
+                upload_path.parent.mkdir(parents=True, exist_ok=True)
 
-        except Exception as e:
-            logger.exception("upload_create: failed while handling file %s", getattr(f, 'name', 'unknown'))
-            return JsonResponse({
-                'success': False,
-                'message': 'خطأ أثناء حفظ الملف أو المعالجة.',
-                'detail': str(e),
-                'trace': traceback.format_exc()
-            }, status=500)
+                logger.info("Saving upload file: %s (%s bytes)", f.name, f.size)
 
-    return JsonResponse({'success': True, 'uploads': [{'id': u.id, 'name': u.original_filename} for u in uploads]})
+                # حفظ الملف
+                with open(upload_path, 'wb+') as dest:
+                    for chunk in f.chunks():
+                        dest.write(chunk)
+
+                # حفظ في الداتابيس
+                upload = Upload.objects.create(
+                    user=request.user,
+                    original_filename=f.name,
+                    stored_filename=unique_name,
+                    status='processing'
+                )
+                uploads.append(upload)
+
+                # المعالجة
+                try:
+                    if hasattr(service, 'process_single_pdf'):
+                        service.process_single_pdf(upload)
+                    else:
+                        service.process_pdf(upload)
+
+                    upload.set_completed()
+
+                except Exception as proc_err:
+                    upload.status = 'failed'
+                    upload.message = str(proc_err)
+                    upload.save(update_fields=['status', 'message'])
+                    logger.exception("Processing failed: %s", proc_err)
+
+            except Exception as e:
+                logger.exception("upload_create ERROR on file save: %s", f.name)
+                return JsonResponse({
+                    'success': False,
+                    'message': 'خطأ أثناء رفع الملف أو معالجته.',
+                    'detail': str(e)
+                }, status=500)
+
+        return JsonResponse({
+            'success': True,
+            'uploads': [{'id': u.id, 'name': u.original_filename} for u in uploads]
+        })
+
+    # أي شيء غير GET و POST
+    return JsonResponse({'success': False, 'message': 'طريقة الطلب غير مسموح بها.'}, status=405)
 
 
 @login_required
