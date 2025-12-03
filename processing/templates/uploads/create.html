@@ -134,6 +134,7 @@ function showToast(message, type = 'success') {
 }
 
 // ------------------------ رفع الملفات ------------------------
+// ------------------------ رفع الملفات ------------------------
 document.getElementById("upload-form").addEventListener("submit", async function(e){
     e.preventDefault();
     
@@ -152,24 +153,36 @@ document.getElementById("upload-form").addEventListener("submit", async function
     // إنشاء FormData واحدة لجميع الملفات
     const formData = new FormData();
     
-    // إضافة CSRF token
+    // إضافة CSRF token - تأكد أن اسمه صحيح
     formData.append("csrfmiddlewaretoken", csrfToken);
     
-    // إضافة جميع الملفات باسم file[] (للتعامل مع مصفوفة)
+    // إضافة جميع الملفات
     for (let i = 0; i < selectedFiles.length; i++) {
         formData.append("file[]", selectedFiles[i]);
+        console.log(`إضافة ملف: ${selectedFiles[i].name}`);
     }
 
     try {
         console.log('بدء رفع الملفات...');
+        
+        // أضف headers للتصحيح
         const res = await fetch("/uploads/create/", {
             method: "POST",
             body: formData,
-            // لا تضيف Content-Type header مع FormData، المتصفح يضيفه تلقائياً
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            }
         });
         
+        console.log('حالة الرد:', res.status, res.statusText);
+        
+        // تحقق من حالة الرد
+        if (!res.ok) {
+            throw new Error(`خطأ HTTP! الحالة: ${res.status}`);
+        }
+        
         const data = await res.json();
-        console.log('الاستجابة:', data);
+        console.log('بيانات الاستجابة:', data);
         
         if(data.success && data.uploads && data.uploads.length > 0){
             showToast(`تم رفع ${data.uploads.length} ملف بنجاح`, 'success');
@@ -178,14 +191,17 @@ document.getElementById("upload-form").addEventListener("submit", async function
             data.uploads.forEach(upload => {
                 uploadIds.push(upload.id);
             });
+            console.log('معرفات الملفات:', uploadIds);
             
             // ابدأ المعالجة لكل upload فوراً
             for (let uploadId of uploadIds) {
                 try {
+                    console.log(`بدء معالجة ${uploadId}`);
                     await fetch(`/uploads/${uploadId}/process/`, {
                         method: "POST",
                         headers: {
                             'X-CSRFToken': csrfToken,
+                            'X-Requested-With': 'XMLHttpRequest'
                         }
                     });
                 } catch (processError) {
@@ -200,18 +216,23 @@ document.getElementById("upload-form").addEventListener("submit", async function
         } else {
             const errorMsg = data.message || 'فشل الرفع';
             showToast(errorMsg, 'error');
+            
+            // عرض معلومات التصحيح إذا كانت موجودة
+            if (data.debug) {
+                console.error('معلومات التصحيح:', data.debug);
+            }
+            
             startBtn.disabled = false;
             startBtn.innerHTML = 'بدء رفع الملفات';
         }
         
     } catch(err){
-        console.error("خطأ في الرفع:", err);
+        console.error("خطأ كامل في الرفع:", err);
         showToast('حدث خطأ أثناء الرفع: ' + err.message, 'error');
         startBtn.disabled = false;
         startBtn.innerHTML = 'بدء رفع الملفات';
     }
 });
-
 // ------------------------ متابعة التقدم ------------------------
 async function updateProgress() {
     if(uploadIds.length === 0){

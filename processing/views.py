@@ -14,6 +14,7 @@ from django.conf import settings
 from .models import Upload, Group
 from .services import BarcodeOCRService
 from concurrent.futures import ThreadPoolExecutor
+from django.views.decorators.csrf import csrf_exempt
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +27,7 @@ def upload_list(request):
     uploads = Upload.objects.filter(user=request.user).order_by('-created_at')
     return render(request, 'uploads/list.html', {'uploads': uploads})
 
+@csrf_exempt
 @login_required
 def upload_create(request):
     if request.method == 'POST':
