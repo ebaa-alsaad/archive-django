@@ -29,63 +29,197 @@ def upload_list(request):
 @login_required
 def upload_create(request):
     if request.method == 'POST':
+        print(f"DEBUG: Request method: {request.method}")
+        print(f"DEBUG: User: {request.user}")
+        print(f"DEBUG: FILES keys: {list(request.FILES.keys())}")
+        print(f"DEBUG: POST keys: {list(request.POST.keys())}")
+        
+        # استقبال الملفات كـ file[] (مصفوفة)
         files = request.FILES.getlist('file[]')
+        
+        # إذا لم توجد كـ file[]، جرب file (مفرد)
         if not files:
-            return JsonResponse({'success': False, 'message': 'لم يتم إرسال ملفات.'})
+            files = request.FILES.getlist('file')
+        
+        print(f"DEBUG: Number of files received: {len(files)}")
+        
+        if not files:
+            logger.error("No files received in upload_create")
+            return JsonResponse({
+                'success': False, 
+                'message': 'لم يتم إرسال ملفات.',
+                'debug': {
+                    'files_keys': list(request.FILES.keys()),
+                    'post_keys': list(request.POST.keys())
+                }
+            })
 
         uploads = []
         for f in files:
-            unique_name = f"{uuid.uuid4().hex}_{f.name}"
-            upload_path = Path(settings.PRIVATE_MEDIA_ROOT) / unique_name
-            upload_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(upload_path, 'wb+') as dest:
-                for chunk in f.chunks():
-                    dest.write(chunk)
-            upload = Upload.objects.create(
-                user=request.user,
-                original_filename=f.name,
-                stored_filename=unique_name,
-                status='pending'
-            )
-            uploads.append(upload)
+            try:
+                print(f"DEBUG: Processing file: {f.name}, size: {f.size}")
+                
+                # إنشاء اسم فريد للملف
+                unique_name = f"{uuid.uuid4().hex}_{f.name}"
+                upload_path = Path(settings.PRIVATE_MEDIA_ROOT) / unique_name
+                
+                # إنشاء المجلد إذا لم يكن موجوداً
+                upload_path.parent.mkdir(parents=True, exist_ok=True)
+                
+                # حفظ الملف
+                with open(upload_path, 'wb+') as dest:
+                    for chunk in f.chunks():
+                        dest.write(chunk)
+                
+                print(f"DEBUG: File saved to: {upload_path}")
+                
+                # إنشاء سجل Upload في قاعدة البيانات
+                upload = Upload.objects.create(
+                    user=request.user,
+                    original_filename=f.name,
+                    stored_filename=unique_name,
+                    status='pending',
+                    progress=0
+                )
+                uploads.append(upload)
+                
+                print(f"DEBUG: Upload created with ID: {upload.id}")
+                
+            except Exception as e:
+                logger.error(f"Error processing file {f.name}: {str(e)}")
+                print(f"ERROR: Failed to process {f.name}: {e}")
+                continue
 
-        return JsonResponse({'success': True, 'uploads': [{'id': u.id, 'name': u.original_filename} for u in uploads]})
+        return JsonResponse({
+            'success': True, 
+            'message': f'تم رفع {len(uploads)} ملف بنجاح',
+            'uploads': [{'id': u.id, 'name': u.original_filename} for u in uploads]
+        })
 
-    # إذا كان GET، اعرض صفحة رفع الملفات
+    # GET request - عرض الصفحة
     return render(request, 'uploads/create.html')
-
 
 @login_required
 def check_status(request, upload_id):
-    upload = get_object_or_404(Upload, id=upload_id, user=request.user)
-    progress_data = cache.get(f"upload_{upload_id}_progress") or {
-        'progress': upload.progress,
-        'groups': [{'pages_count': g.pages_count} for g in upload.groups.all()],
-        'groups_count': upload.groups.count()
-    }
-    return JsonResponse({'success': True, **progress_data})
-
+    """الحصول على حالة معالجة الملف"""
+    try:
+        upload = get_object_or_404(Upload, id=upload_id, user=request.user)
+        
+        # الحصول على البيانات من cache أو من قاعدة البيانات
+        cache_key = f"upload_{upload_id}_progress"
+        progress_data = cache.get(cache_key) or {
+            'progress': upload.progress or 0,
+            'message': upload.message or '',
+            'status': upload.status,
+            'groups': [{'pages_count': g.pages_count or 0} for g in upload.groups.all()],
+            'groups_count': upload.groups.count()
+        }
+        
+        # تحديث التقدم من قاعدة البيانات
+        progress_data['progress'] = upload.progress or 0
+        progress_data['status'] = upload.status
+        progress_data['message'] = upload.message or ''
+        
+        return JsonResponse({'success': True, **progress_data})
+    
+    except Exception as e:
+        logger.error(f"Error in check_status for upload {upload_id}: {e}")
+        return JsonResponse({
+            'success': False, 
+            'error': str(e),
+            'progress': 0,
+            'status': 'error'
+        })
 
 @login_required
 def process_upload(request, upload_id):
-    upload = get_object_or_404(Upload, id=upload_id, user=request.user)
-
-    if upload.status in ['processing', 'completed']:
-        return JsonResponse({'success': False, 'message': 'الملف قيد المعالجة أو مكتمل بالفعل'})
-
-    def process():
-        upload.status = 'processing'
-        upload.save(update_fields=['status'])
-        service = BarcodeOCRService()
-        service.process_single_pdf(upload)
-        upload.status = 'completed'
-        upload.save(update_fields=['status'])
-
-    executor = ThreadPoolExecutor(max_workers=1)
-    executor.submit(process)
-
-    return JsonResponse({'success': True, 'message': 'تم بدء المعالجة'})
-
+    """بدء معالجة الملف"""
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': 'طريقة غير مسموحة'})
+    
+    try:
+        upload = get_object_or_404(Upload, id=upload_id, user=request.user)
+        
+        if upload.status in ['processing', 'completed']:
+            return JsonResponse({
+                'success': False, 
+                'message': 'الملف قيد المعالجة أو مكتمل بالفعل',
+                'status': upload.status
+            })
+        
+        def background_process():
+            """دالة المعالجة في الخلفية"""
+            try:
+                print(f"DEBUG: Starting processing for upload {upload_id}")
+                
+                # تحديث الحالة
+                upload.status = 'processing'
+                upload.progress = 10
+                upload.save(update_fields=['status', 'progress'])
+                
+                # تخزين التقدم في cache
+                cache.set(f"upload_{upload_id}_progress", {
+                    'progress': 10,
+                    'message': 'بدء المعالجة...',
+                    'status': 'processing'
+                }, 300)
+                
+                # استدعاء خدمة المعالجة
+                service = BarcodeOCRService()
+                result = service.process_single_pdf(upload)
+                
+                print(f"DEBUG: Processing completed for upload {upload_id}: {result}")
+                
+                if result:
+                    upload.status = 'completed'
+                    upload.progress = 100
+                    upload.message = 'تمت المعالجة بنجاح'
+                else:
+                    upload.status = 'failed'
+                    upload.message = 'فشلت المعالجة'
+                
+                upload.save(update_fields=['status', 'progress', 'message'])
+                
+                # تحديث cache
+                cache.set(f"upload_{upload_id}_progress", {
+                    'progress': 100 if result else 0,
+                    'message': upload.message,
+                    'status': upload.status,
+                    'groups': [{'pages_count': g.pages_count or 0} for g in upload.groups.all()],
+                    'groups_count': upload.groups.count()
+                }, 300)
+                
+            except Exception as e:
+                logger.error(f"Error in background_process for upload {upload_id}: {e}")
+                print(f"ERROR in processing: {traceback.format_exc()}")
+                
+                upload.status = 'failed'
+                upload.message = f'خطأ: {str(e)}'
+                upload.save(update_fields=['status', 'message'])
+                
+                cache.set(f"upload_{upload_id}_progress", {
+                    'progress': 0,
+                    'message': upload.message,
+                    'status': 'failed'
+                }, 300)
+        
+        # تشغيل المعالجة في thread منفصل
+        executor = ThreadPoolExecutor(max_workers=1)
+        executor.submit(background_process)
+        executor.shutdown(wait=False)
+        
+        return JsonResponse({
+            'success': True, 
+            'message': 'تم بدء المعالجة في الخلفية',
+            'status': 'started'
+        })
+        
+    except Exception as e:
+        logger.error(f"Error in process_upload: {e}")
+        return JsonResponse({
+            'success': False, 
+            'message': f'خطأ: {str(e)}'
+        })
 
 @login_required
 def upload_detail(request, upload_id):

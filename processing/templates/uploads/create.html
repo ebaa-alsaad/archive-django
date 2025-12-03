@@ -1,7 +1,6 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="max-w-4xl mx-auto space-y-8">
-
     <h2 class="text-4xl font-extrabold text-gray-800 text-center">
         <i class="fa-solid fa-cloud-arrow-up text-blue-600 ml-3"></i> رفع ملفات PDF متعددة
     </h2>
@@ -9,8 +8,10 @@
     <div id="toast-container" class="fixed top-5 right-5 z-[100] space-y-2 max-w-sm"></div>
 
     <div id="upload-card" class="bg-white p-8 rounded-2xl shadow-xl border border-gray-100">
+        <!-- إضافة CSRF token هنا -->
+        <input type="hidden" id="csrf-token" value="{{ csrf_token }}">
+        
         <form id="upload-form" enctype="multipart/form-data">
-            {% csrf_token %}
             <input id="file-input" type="file" name="file[]" accept="application/pdf" class="hidden" multiple/>
             <div id="drop-zone"
                  class="flex flex-col items-center justify-center w-full h-64 border-3 border-dashed border-gray-300 bg-gray-50 hover:bg-gray-100 rounded-2xl cursor-pointer transition-all">
@@ -23,11 +24,11 @@
                 </div>
             </div>
 
-            <ul id="file-list" class="space-y-3 hidden"></ul>
+            <ul id="file-list" class="space-y-3 mt-4 hidden"></ul>
 
             <button type="submit" id="start-archiving"
                     disabled
-                    class="w-full bg-gradient-to-r from-blue-600 to-blue-500 text-white px-8 py-4 rounded-xl font-bold text-lg shadow-lg disabled:opacity-50 hover:from-blue-700 hover:to-blue-600 transition-all">
+                    class="w-full mt-6 bg-gradient-to-r from-blue-600 to-blue-500 text-white px-8 py-4 rounded-xl font-bold text-lg shadow-lg disabled:opacity-50 hover:from-blue-700 hover:to-blue-600 transition-all">
                 بدء رفع الملفات
             </button>
         </form>
@@ -49,6 +50,7 @@ const fileList = document.getElementById("file-list");
 const startBtn = document.getElementById("start-archiving");
 const resultsContainer = document.getElementById("results-container");
 const resultsList = document.getElementById("results-list");
+const csrfToken = document.getElementById("csrf-token").value;
 
 let selectedFiles = [];
 let uploadIds = [];
@@ -64,11 +66,14 @@ function renderFileList() {
         li.className = "bg-white border border-gray-200 rounded-xl p-3 shadow-sm space-y-2";
         li.innerHTML = `
             <div class="flex justify-between items-center">
-                <div>
-                    <p class="font-semibold text-gray-800">${file.name}</p>
-                    <p class="text-sm text-gray-500">${(file.size / 1024 / 1024).toFixed(2)} MB</p>
+                <div class="flex items-center space-x-3">
+                    <i class="fa-solid fa-file-pdf text-red-500 text-xl"></i>
+                    <div>
+                        <p class="font-semibold text-gray-800 truncate max-w-xs">${file.name}</p>
+                        <p class="text-sm text-gray-500">${(file.size / 1024 / 1024).toFixed(2)} MB</p>
+                    </div>
                 </div>
-                <button type="button" class="text-red-600 hover:text-red-800" onclick="removeFile(${index})">
+                <button type="button" class="text-red-600 hover:text-red-800 p-2" onclick="removeFile(${index})">
                     <i class="fa-solid fa-trash"></i>
                 </button>
             </div>
@@ -97,79 +102,155 @@ fileInput.addEventListener("change", () => {
 });
 
 dropZone.addEventListener("click", () => fileInput.click());
-dropZone.addEventListener("dragover", (e) => { e.preventDefault(); dropZone.classList.add("bg-blue-50", "border-blue-500"); });
-dropZone.addEventListener("dragleave", () => { dropZone.classList.remove("bg-blue-50", "border-blue-500"); });
+
+dropZone.addEventListener("dragover", (e) => { 
+    e.preventDefault(); 
+    dropZone.classList.add("bg-blue-50", "border-blue-500", "border-3");
+});
+
+dropZone.addEventListener("dragleave", () => { 
+    dropZone.classList.remove("bg-blue-50", "border-blue-500", "border-3");
+});
+
 dropZone.addEventListener("drop", (e) => {
     e.preventDefault();
-    dropZone.classList.remove("bg-blue-50", "border-blue-500");
+    dropZone.classList.remove("bg-blue-50", "border-blue-500", "border-3");
     selectedFiles = [...selectedFiles, ...e.dataTransfer.files];
     renderFileList();
     startBtn.disabled = selectedFiles.length === 0;
 });
 
+// ------------------------ عرض الرسائل ------------------------
+function showToast(message, type = 'success') {
+    const toast = document.createElement('div');
+    toast.className = `p-4 rounded-lg shadow-lg ${type === 'success' ? 'bg-green-500' : 'bg-red-500'} text-white`;
+    toast.textContent = message;
+    
+    document.getElementById('toast-container').appendChild(toast);
+    
+    setTimeout(() => {
+        toast.remove();
+    }, 5000);
+}
+
 // ------------------------ رفع الملفات ------------------------
 document.getElementById("upload-form").addEventListener("submit", async function(e){
     e.preventDefault();
+    
+    if (selectedFiles.length === 0) {
+        showToast('يرجى اختيار ملفات أولاً', 'error');
+        return;
+    }
+    
     startBtn.disabled = true;
-    startBtn.innerHTML = "جاري الرفع...";
+    startBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i> جاري الرفع...';
     resultsContainer.classList.add("hidden");
     resultsList.innerHTML = "";
 
     uploadIds = [];
 
+    // إنشاء FormData واحدة لجميع الملفات
+    const formData = new FormData();
+    
+    // إضافة CSRF token
+    formData.append("csrfmiddlewaretoken", csrfToken);
+    
+    // إضافة جميع الملفات باسم file[] (للتعامل مع مصفوفة)
     for (let i = 0; i < selectedFiles.length; i++) {
-        const formData = new FormData();
         formData.append("file[]", selectedFiles[i]);
-        formData.append("csrfmiddlewaretoken", document.querySelector('[name=csrfmiddlewaretoken]').value);
-
-        try {
-            const res = await fetch("{% url 'processing:upload_create' %}", {
-                method: "POST",
-                body: formData
-            });
-            const data = await res.json();
-            if(data.success && data.uploads.length > 0){
-                uploadIds.push(data.uploads[0].id);
-            }
-        } catch(err){
-            alert("حدث خطأ أثناء الرفع: " + err);
-        }
     }
 
-    if(progressInterval) clearInterval(progressInterval);
-    progressInterval = setInterval(updateProgress, 1000);
+    try {
+        console.log('بدء رفع الملفات...');
+        const res = await fetch("{% url 'processing:upload_create' %}", {
+            method: "POST",
+            body: formData,
+            // لا تضيف Content-Type header مع FormData، المتصفح يضيفه تلقائياً
+        });
+        
+        const data = await res.json();
+        console.log('الاستجابة:', data);
+        
+        if(data.success && data.uploads && data.uploads.length > 0){
+            showToast(`تم رفع ${data.uploads.length} ملف بنجاح`, 'success');
+            
+            // احفظ جميع IDs
+            data.uploads.forEach(upload => {
+                uploadIds.push(upload.id);
+            });
+            
+            // ابدأ المعالجة لكل upload فوراً
+            for (let uploadId of uploadIds) {
+                try {
+                    await fetch(`/uploads/${uploadId}/process/`, {
+                        method: "POST",
+                        headers: {
+                            'X-CSRFToken': csrfToken,
+                        }
+                    });
+                } catch (processError) {
+                    console.error(`خطأ في معالجة upload ${uploadId}:`, processError);
+                }
+            }
+            
+            // ابدأ متابعة التقدم
+            if(progressInterval) clearInterval(progressInterval);
+            progressInterval = setInterval(updateProgress, 2000);
+            
+        } else {
+            const errorMsg = data.message || 'فشل الرفع';
+            showToast(errorMsg, 'error');
+            startBtn.disabled = false;
+            startBtn.innerHTML = 'بدء رفع الملفات';
+        }
+        
+    } catch(err){
+        console.error("خطأ في الرفع:", err);
+        showToast('حدث خطأ أثناء الرفع: ' + err.message, 'error');
+        startBtn.disabled = false;
+        startBtn.innerHTML = 'بدء رفع الملفات';
+    }
 });
 
 // ------------------------ متابعة التقدم ------------------------
 async function updateProgress() {
     if(uploadIds.length === 0){
         clearInterval(progressInterval);
+        startBtn.disabled = false;
+        startBtn.innerHTML = 'بدء رفع الملفات';
         return;
     }
 
     let allCompleted = true;
 
-    for(let i=0; i<uploadIds.length; i++){
+    for(let i = 0; i < uploadIds.length; i++){
         const uploadId = uploadIds[i];
         try {
             const res = await fetch(`/uploads/${uploadId}/status/`);
             if(!res.ok) continue;
+            
             const data = await res.json();
-
+            
+            // تحديث شريط التقدم
             const progressEl = document.getElementById(`progress-${i}`);
             const textEl = document.getElementById(`progress-text-${i}`);
             if(progressEl && textEl){
-                progressEl.style.width = data.progress + "%";
-                textEl.textContent = data.progress + "%";
+                const progress = data.progress || 0;
+                progressEl.style.width = progress + "%";
+                textEl.textContent = progress + "%";
             }
 
+            // عرض المجموعات
             const groupsContainer = document.getElementById(`groups-${i}`);
             if(groupsContainer && data.groups){
                 groupsContainer.innerHTML = "";
                 data.groups.forEach((g, idx) => {
                     const div = document.createElement("div");
-                    div.className = "text-sm text-gray-600";
-                    div.textContent = `مجموعة ${idx+1}: ${g.pages_count} صفحة`;
+                    div.className = "text-sm text-gray-600 flex justify-between";
+                    div.innerHTML = `
+                        <span>مجموعة ${idx+1}:</span>
+                        <span>${g.pages_count || 0} صفحة</span>
+                    `;
                     groupsContainer.appendChild(div);
                 });
             }
@@ -177,32 +258,42 @@ async function updateProgress() {
             if(data.progress < 100){
                 allCompleted = false;
             } else {
-                // رابط ZIP لكل ملف
+                // إضافة رابط ZIP لكل ملف مكتمل
                 if(data.groups_count > 0 && !document.getElementById(`zip-link-${uploadId}`)){
                     const link = document.createElement('a');
                     link.href = `/uploads/${uploadId}/download_zip/`;
                     link.id = `zip-link-${uploadId}`;
                     link.download = `archive_${uploadId}.zip`;
-                    link.textContent = `تحميل مجموعات الملف ${uploadId}`;
-                    link.className = "block text-blue-700 font-bold mt-2";
+                    link.className = "block text-blue-700 font-bold mt-2 p-2 bg-white rounded-lg hover:bg-blue-50 transition-colors";
+                    link.innerHTML = `<i class="fa-solid fa-file-zipper mr-2"></i> تحميل مجموعات الملف ${uploadId}`;
                     resultsList.appendChild(link);
                 }
             }
 
         } catch(err){
-            console.warn("Progress fetch error:", err);
+            console.warn(`خطأ في متابعة upload ${uploadId}:`, err);
         }
     }
 
     if(allCompleted){
         clearInterval(progressInterval);
         startBtn.disabled = false;
-        startBtn.innerHTML = "بدء رفع الملفات";
-        selectedFiles = [];
-        uploadIds = [];
-        renderFileList();
+        startBtn.innerHTML = 'بدء رفع الملفات';
+        
+        // إظهار نتائج النهائية
         resultsContainer.classList.remove("hidden");
+        showToast('تمت معالجة جميع الملفات بنجاح!', 'success');
     }
 }
+
+// جعل removeFile متاحة globally
+window.removeFile = removeFile;
 </script>
+
+<style>
+#drop-zone.dragover {
+    background-color: #eff6ff !important;
+    border-color: #3b82f6 !important;
+}
+</style>
 {% endblock %}
