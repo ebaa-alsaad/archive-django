@@ -6,6 +6,8 @@
 <div id="uploads"></div>
 
 <script>
+const csrftoken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+
 function uploadFiles(){
     const files = document.getElementById('file-input').files;
     for(let i=0;i<files.length;i++){
@@ -14,55 +16,75 @@ function uploadFiles(){
 }
 
 function uploadFile(file){
-    const container=document.createElement('div');
+    const container = document.createElement('div');
     container.classList.add('progress-container');
-    const title=document.createElement('div'); title.textContent=file.name;
-    const bar=document.createElement('div'); bar.classList.add('progress-bar');
-    container.appendChild(title); container.appendChild(bar);
+
+    const title = document.createElement('div');
+    title.textContent = file.name;
+
+    const bar = document.createElement('div');
+    bar.classList.add('progress-bar');
+
+    const statusText = document.createElement('div');
+    statusText.classList.add('status-text');
+    statusText.textContent = 'انتظار...';
+
+    container.appendChild(title);
+    container.appendChild(bar);
+    container.appendChild(statusText);
+
     document.getElementById('uploads').appendChild(container);
 
-    const formData=new FormData(); 
+    const formData = new FormData();
     formData.append('file', file);
 
-    fetch('/uploads/create/', {
-        method:'POST',
-        body:formData,
-        headers:{'X-CSRFToken':getCookie('csrftoken')}
+    fetch("{% url 'processing:upload_create' %}", {
+        method: 'POST',
+        body: formData,
+        headers: { 'X-CSRFToken': csrftoken }
     })
-    .then(res=>res.json())
-    .then(data=>{
-        if(data.success && data.uploads.length>0){
-            const upload_id = data.uploads[0].id;
-            const interval = setInterval(()=>{
-                fetch(`/uploads/${upload_id}/status/`).then(r=>r.json()).then(p=>{
-                    bar.style.width=p.progress+'%';
-                    bar.textContent=Math.round(p.progress)+'%';
-                    if(p.progress>=100) clearInterval(interval);
-                });
-            },500);
+    .then(res => res.json().catch(() => { 
+        throw new Error('الرد ليس JSON، تحقق من السيرفر'); 
+    }))
+    .then(data => {
+        if(!data.success){
+            statusText.textContent = data.message || 'خطأ غير معروف';
+            bar.style.background = 'red';
+            return;
         }
-    });
-}
 
-function getCookie(name){
-    let cookieValue=null;
-    if(document.cookie && document.cookie!==''){
-        const cookies=document.cookie.split(';');
-        for(let cookie of cookies){
-            cookie=cookie.trim();
-            if(cookie.startsWith(name+'=')){
-                cookieValue=decodeURIComponent(cookie.substring(name.length+1));
-                break;
-            }
-        }
-    }
-    return cookieValue;
+        const upload_id = data.uploads[0].id;
+        statusText.textContent = 'جاري المعالجة...';
+
+        const interval = setInterval(() => {
+            fetch(`/uploads/${upload_id}/status/`)
+            .then(r => r.json())
+            .then(p => {
+                bar.style.width = p.progress+'%';
+                bar.textContent = Math.round(p.progress)+'%';
+
+                statusText.textContent = p.status;
+                if(p.progress >= 100 || p.status === 'failed') clearInterval(interval);
+
+                if(p.status === 'failed'){
+                    bar.style.background = 'red';
+                    statusText.textContent = 'فشل في المعالجة: ' + p.message;
+                }
+            });
+        }, 500);
+    })
+    .catch(err => {
+        console.error(err);
+        statusText.textContent = 'خطأ في رفع الملف: ' + err.message;
+        bar.style.background = 'red';
+    });
 }
 </script>
 
 <style>
-.progress-container{margin-bottom:10px;}
-.progress-bar{width:0%;height:20px;background:#4caf50;text-align:center;color:white;}
+.progress-container { margin-bottom:10px; }
+.progress-bar { width:0%; height:20px; background:#4caf50; text-align:center; color:white; }
+.status-text { font-size: 12px; margin-top: 2px; }
 </style>
 
 {% endblock %}

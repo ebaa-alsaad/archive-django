@@ -26,45 +26,46 @@ def upload_list(request):
 
 @login_required
 def upload_create(request):
-    if request.method == 'POST':
-        files = request.FILES.getlist('file')
-        uploads = []
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': 'طريقة الطلب غير صحيحة.'}, status=400)
 
-        for f in files:
-            upload = Upload.objects.create(
-                user=request.user,
-                original_filename=f.name,
-                stored_filename=f"{uuid.uuid4().hex}_{f.name}",
-                status='pending'
-            )
-            # حفظ مؤقت للمعالجة
-            upload_path = Path(settings.PRIVATE_MEDIA_ROOT) / upload.stored_filename
-            upload_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(upload_path, 'wb+') as dest:
-                for chunk in f.chunks():
-                    dest.write(chunk)
-            uploads.append(upload)
+    files = request.FILES.getlist('file')
+    if not files:
+        return JsonResponse({'success': False, 'message': 'لم يتم إرسال ملفات.'}, status=400)
 
-        # بدء المعالجة مباشرة (يمكن استخدام ThreadPoolExecutor للتوازي)
-        service = BarcodeOCRService()
-        for upload in uploads:
-            try:
-                upload.status = 'processing'
-                upload.save(update_fields=['status'])
-                service.process_single_pdf(upload)
-                upload.set_completed()
-            except Exception as e:
-                upload.status = 'failed'
-                upload.message = str(e)
-                upload.save(update_fields=['status','message'])
-                logger.exception(f"Failed processing upload {upload.id}")
+    uploads = []
+    service = BarcodeOCRService()
 
-        return JsonResponse({
-            'success': True,
-            'uploads': [{'id': u.id, 'name': u.original_filename} for u in uploads]
-        })
+    for f in files:
+        unique_name = f"{uuid.uuid4().hex}_{f.name}"
+        upload_path = Path(settings.PRIVATE_MEDIA_ROOT) / unique_name
+        upload_path.parent.mkdir(parents=True, exist_ok=True)
 
-    return render(request, 'uploads/create.html')
+        with open(upload_path, 'wb+') as dest:
+            for chunk in f.chunks():
+                dest.write(chunk)
+
+        upload = Upload.objects.create(
+            user=request.user,
+            original_filename=f.name,
+            stored_filename=unique_name,
+            status='pending'
+        )
+        uploads.append(upload)
+
+        # يمكنك معالجة الملف في Thread لاحقًا لتجنب تعليق الرفع
+        try:
+            upload.status = 'processing'
+            upload.save(update_fields=['status'])
+            service.process_single_pdf(upload)
+            upload.set_completed()
+        except Exception as e:
+            upload.status = 'failed'
+            upload.message = str(e)
+            upload.save(update_fields=['status', 'message'])
+            logger.exception(f"Failed processing upload {upload.id}")
+
+    return JsonResponse({'success': True, 'uploads': [{'id': u.id, 'name': u.original_filename} for u in uploads]})
 
 
 @login_required
