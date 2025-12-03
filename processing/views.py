@@ -1,3 +1,7 @@
+import os
+import uuid
+import logging
+from pathlib import Path
 from django.shortcuts import render, get_object_or_404, redirect
 from django.http import JsonResponse, FileResponse
 from django.contrib.auth.decorators import login_required
@@ -8,11 +12,6 @@ from django.core.cache import cache
 from django.conf import settings
 from .models import Upload, Group
 from .services import BarcodeOCRService
-import os
-import uuid
-from pathlib import Path
-import logging
-import zipfile
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +27,7 @@ def upload_list(request):
 @login_required
 def upload_create(request):
     if request.method == 'POST':
-        files = request.FILES.getlist('pdf_file[]')
+        files = request.FILES.getlist('file')  # تأكد من تطابق المفتاح مع JS
         uploads = []
 
         for f in files:
@@ -57,6 +56,24 @@ def upload_create(request):
         })
 
     return render(request, 'uploads/create.html')
+
+
+@login_required
+def check_status(request, upload_id):
+    upload = get_object_or_404(Upload, id=upload_id, user=request.user)
+    cache_key = f"upload_{upload_id}_progress"
+    progress_data = cache.get(cache_key) or {
+        'progress': upload.progress,
+        'message': upload.message or '',
+        'status': upload.status
+    }
+    return JsonResponse({
+        'success': True,
+        'status': upload.status,
+        'progress': progress_data['progress'],
+        'message': progress_data['message'],
+        'groups_count': upload.groups.count()
+    })
 
 @login_required
 def upload_detail(request, upload_id):
@@ -108,22 +125,6 @@ def process_upload(request, upload_id):
 
     return JsonResponse({'success': True, 'message': 'تمت المعالجة بنجاح'})
 
-@login_required
-def check_status(request, upload_id):
-    upload = get_object_or_404(Upload, id=upload_id, user=request.user)
-    cache_key = f"upload_{upload_id}_progress"
-    progress_data = cache.get(cache_key) or {
-        'progress': upload.progress,
-        'message': upload.message or '',
-        'status': upload.status
-    }
-    return JsonResponse({
-        'success': True,
-        'status': upload.status,
-        'progress': progress_data['progress'],
-        'message': progress_data['message'],
-        'groups_count': upload.groups.count()
-    })
 
 @login_required
 def download_zip(request, upload_id):

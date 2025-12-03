@@ -1,17 +1,6 @@
 {% extends "base.html" %}
-{% load static %}
 {% block content %}
 
-<!DOCTYPE html>
-<html>
-<head>
-    <title>رفع ملفات PDF</title>
-    <style>
-        .progress-container { margin-bottom: 10px; }
-        .progress-bar { width: 0%; height: 20px; background-color: #4caf50; text-align: center; color: white; }
-    </style>
-</head>
-<body>
 <h1>رفع ملفات PDF متعددة</h1>
 <input type="file" id="file-input" multiple>
 <button onclick="uploadFiles()">رفع الملفات</button>
@@ -40,16 +29,17 @@ function uploadFile(file) {
     const formData = new FormData();
     formData.append('file', file);
 
-    fetch('/upload/', {
+    fetch('/uploads/create/', {
         method: 'POST',
         body: formData,
         headers: { 'X-CSRFToken': getCookie('csrftoken') }
     })
     .then(res => res.json())
     .then(data => {
-        if(data.upload_id) {
+        if(data.success && data.uploads.length > 0){
+            const upload_id = data.uploads[0].id;
             const interval = setInterval(() => {
-                fetch(`/progress/${data.upload_id}/`)
+                fetch(`/uploads/${upload_id}/status/`)
                 .then(r => r.json())
                 .then(p => {
                     bar.style.width = p.progress + '%';
@@ -77,5 +67,10 @@ function getCookie(name) {
     return cookieValue;
 }
 </script>
-</body>
-</html>
+
+<style>
+.progress-container { margin-bottom: 10px; }
+.progress-bar { width: 0%; height: 20px; background-color: #4caf50; text-align: center; color: white; }
+</style>
+
+{% endblock %}
