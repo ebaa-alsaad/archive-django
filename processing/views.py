@@ -12,6 +12,7 @@ import os
 import uuid
 from pathlib import Path
 import logging
+import zipfile
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +58,6 @@ def upload_create(request):
 
     return render(request, 'uploads/create.html')
 
-
 @login_required
 def upload_detail(request, upload_id):
     upload = get_object_or_404(Upload, id=upload_id, user=request.user)
@@ -76,7 +76,6 @@ def upload_detail(request, upload_id):
         'progress': progress_data
     })
 
-
 @login_required
 def download_file(request, upload_id):
     upload = get_object_or_404(Upload, id=upload_id, user=request.user)
@@ -85,10 +84,8 @@ def download_file(request, upload_id):
         return JsonResponse({'success': False, 'error': 'الملف غير موجود'})
     return FileResponse(open(path, 'rb'), as_attachment=True, filename=upload.original_filename)
 
-
 @login_required
 def process_upload(request, upload_id):
-    """معالجة الملف مباشرة بدون Celery"""
     upload = get_object_or_404(Upload, id=upload_id, user=request.user)
 
     if upload.status in ['processing', 'completed']:
@@ -111,19 +108,32 @@ def process_upload(request, upload_id):
 
     return JsonResponse({'success': True, 'message': 'تمت المعالجة بنجاح'})
 
+@login_required
+def check_status(request, upload_id):
+    upload = get_object_or_404(Upload, id=upload_id, user=request.user)
+    cache_key = f"upload_{upload_id}_progress"
+    progress_data = cache.get(cache_key) or {
+        'progress': upload.progress,
+        'message': upload.message or '',
+        'status': upload.status
+    }
+    return JsonResponse({
+        'success': True,
+        'status': upload.status,
+        'progress': progress_data['progress'],
+        'message': progress_data['message'],
+        'groups_count': upload.groups.count()
+    })
 
 @login_required
 def download_zip(request, upload_id):
-    """تحميل ملف ZIP"""
     upload = get_object_or_404(Upload, id=upload_id, user=request.user)
-
     if upload.status != 'completed' or upload.groups.count() == 0:
         return JsonResponse({'success': False, 'error': 'لا يمكن تحميل ZIP الآن'})
 
     zip_path = Path(settings.PRIVATE_MEDIA_ROOT) / f"{upload.id}.zip"
 
     if not zip_path.exists():
-        import zipfile
         with zipfile.ZipFile(zip_path, 'w') as zipf:
             for group in upload.groups.all():
                 group_file = Path(settings.PRIVATE_MEDIA_ROOT) / group.pdf_path
@@ -133,17 +143,13 @@ def download_zip(request, upload_id):
     zip_filename = f"archive_{upload.original_filename}_{timezone.now().strftime('%Y%m%d')}.zip"
     return FileResponse(open(zip_path, 'rb'), as_attachment=True, filename=zip_filename)
 
-
 @login_required
 def upload_delete(request, upload_id):
-    """حذف رفع"""
     upload = get_object_or_404(Upload, id=upload_id, user=request.user)
-
     try:
         original_path = Path(settings.PRIVATE_MEDIA_ROOT) / upload.stored_filename
         if original_path.exists():
             original_path.unlink()
-
         for group in upload.groups.all():
             if group.pdf_path:
                 group_path = Path(settings.PRIVATE_MEDIA_ROOT) / group.pdf_path
@@ -151,10 +157,8 @@ def upload_delete(request, upload_id):
                     group_path.unlink()
     except Exception as e:
         logger.warning(f"Failed to delete files for upload {upload_id}: {e}")
-
     upload.delete()
     return JsonResponse({'success': True, 'message': 'تم الحذف بنجاح'})
-
 
 @login_required
 def download_group_file(request, upload_id, group_id):
@@ -170,61 +174,3 @@ def download_group_file(request, upload_id, group_id):
 
     filename = group.filename or f"group_{group.id}.pdf"
     return FileResponse(open(pdf_path, 'rb'), as_attachment=True, filename=filename)
-
-
-# ============================
-# Dashboard
-# ============================
-
-@login_required
-def dashboard_view(request):
-    uploads_count = Upload.objects.filter(user=request.user).count()
-    groups_count = Group.objects.filter(user=request.user).count()
-    processing_uploads = Upload.objects.filter(user=request.user, status='processing').count()
-    completed_uploads = Upload.objects.filter(user=request.user, status='completed').count()
-    latest_uploads = Upload.objects.filter(user=request.user).order_by('-created_at')[:10]
-
-    return render(request, 'dashboard.html', {
-        'uploads_count': uploads_count,
-        'groups_count': groups_count,
-        'processing_uploads': processing_uploads,
-        'completed_uploads': completed_uploads,
-        'uploads': latest_uploads,
-    })
-
-
-# ============================
-# Auth Views
-# ============================
-
-def login_view(request):
-    if request.method == 'POST':
-        username = request.POST.get('username') or request.POST.get('email')
-        password = request.POST.get('password')
-        user = authenticate(request, username=username, password=password)
-        if user:
-            login(request, user)
-            if request.headers.get('x-requested-with') == 'XMLHttpRequest':
-                return JsonResponse({'success': True})
-            return redirect('dashboard')
-        return render(request, 'auth/login.html', {'error': 'بيانات الدخول غير صحيحة.'})
-    return render(request, 'auth/login.html')
-
-
-def register_view(request):
-    if request.method == 'POST':
-        username = request.POST.get("username")
-        email = request.POST.get("email")
-        password = request.POST.get("password")
-        password2 = request.POST.get("password2")
-
-        if password != password2:
-            return JsonResponse({'success': False, 'message': 'كلمة المرور غير متطابقة.'})
-        if User.objects.filter(username=username).exists():
-            return JsonResponse({'success': False, 'message': 'اسم المستخدم موجود مسبقاً.'})
-
-        user = User.objects.create_user(username=username, email=email, password=password)
-        login(request, user)
-        return JsonResponse({'success': True, 'message': 'تم إنشاء الحساب بنجاح!', 'redirect_url': '/dashboard/'})
-
-    return render(request, "auth/register.html")
