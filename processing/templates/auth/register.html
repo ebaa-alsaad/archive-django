@@ -56,15 +56,6 @@ input:focus ~ label, input:not(:placeholder-shown) ~ label {
 
                 <form id="register-form" method="POST" class="space-y-10">{% csrf_token %}
 
-                    <!-- Full Name -->
-                    <div class="relative group">
-                        <input id="full_name" name="full_name" type="text" required placeholder=" " 
-                               class="block w-full px-4 pt-6 pb-2 text-lg bg-transparent border-b-2 border-gray-300 focus:border-blue-500 peer transition">
-                        <label for="full_name" class="absolute right-0 top-4 text-base text-gray-500 transition transform origin-top-right">
-                            <i class="fa-solid fa-user mr-2"></i> الاسم الكامل
-                        </label>
-                    </div>
-
                     <!-- Username -->
                     <div class="relative group">
                         <input id="username" name="username" type="text" required placeholder=" " 
