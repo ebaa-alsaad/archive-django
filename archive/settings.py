@@ -66,7 +66,7 @@ WSGI_APPLICATION = 'archive.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
-        'NAME': 'django_db',
+        'NAME': 'archiveDoc_db',
         'USER': 'django_user',
         'PASSWORD': 'Y-3LsqDjfKh',
         'HOST': 'localhost',
