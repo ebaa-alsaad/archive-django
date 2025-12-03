@@ -29,10 +29,7 @@ def upload_list(request):
 
 @login_required
 def upload_create(request):
-    if request.method != 'POST':
-        logger.warning("upload_create: non-POST request", extra={'path': request.path})
-        return JsonResponse({'success': False, 'message': 'طريقة الطلب غير صحيحة.'}, status=400)
-
+    
     # لوق لمساعدة التشخيص
     logger.debug("upload_create: CONTENT_LENGTH=%s, CONTENT_TYPE=%s, META=%s",
                  request.META.get('CONTENT_LENGTH'), request.META.get('CONTENT_TYPE'),
