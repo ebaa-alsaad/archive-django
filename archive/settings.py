@@ -65,7 +65,7 @@ WSGI_APPLICATION = 'archive.wsgi.application'
 # Database
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.postgresql',
+        'ENGINE': 'django.db.backends.mysql',
         'NAME': 'django_db',
         'USER': 'django_user',
         'PASSWORD': 'Y-3LsqDjfKh',
