@@ -13,6 +13,8 @@ from django.core.cache import cache
 from django.conf import settings
 from .models import Upload, Group
 from .services import BarcodeOCRService
+from concurrent.futures import ThreadPoolExecutor
+
 
 logger = logging.getLogger(__name__)
 
@@ -27,9 +29,6 @@ def upload_list(request):
 
 @login_required
 def upload_create(request):
-    if request.method == 'GET':
-        return render(request, 'uploads/create.html')
-
     if request.method != 'POST':
         return JsonResponse({'success': False, 'message': 'طريقة الطلب غير صحيحة.'}, status=400)
 
@@ -38,9 +37,6 @@ def upload_create(request):
         return JsonResponse({'success': False, 'message': 'لم يتم إرسال ملفات.'}, status=400)
 
     uploads = []
-    service = BarcodeOCRService()
-    zip_files = []
-
     for f in files:
         try:
             unique_name = f"{uuid.uuid4().hex}_{f.name}"
@@ -59,37 +55,10 @@ def upload_create(request):
             )
             uploads.append(upload)
 
-            upload.status = 'processing'
-            upload.save(update_fields=['status'])
-
-            # معالجة الملف
-            created_groups = service.process_single_pdf(upload)
-
-            upload.status = 'completed'
-            upload.save(update_fields=['status'])
-
-            # إنشاء ZIP لكل upload
-            zip_filename = f"{uuid.uuid4().hex}_groups.zip"
-            zip_path = Path(settings.PRIVATE_MEDIA_ROOT) / zip_filename
-            with zipfile.ZipFile(zip_path, 'w') as zipf:
-                for group in created_groups:
-                    group_file = Path(settings.PRIVATE_MEDIA_ROOT) / group.pdf_path
-                    if group_file.exists():
-                        zipf.write(group_file, arcname=group_file.name)
-            zip_files.append({'upload_id': upload.id, 'zip_url': settings.MEDIA_URL + 'private/' + zip_filename})
-
         except Exception as e:
-            return JsonResponse({
-                'success': False,
-                'message': 'خطأ أثناء حفظ الملف أو المعالجة.',
-                'detail': str(e)
-            }, status=500)
+            return JsonResponse({'success': False, 'message': str(e)}, status=500)
 
-    return JsonResponse({
-        'success': True,
-        'uploads': [{'id': u.id, 'name': u.original_filename} for u in uploads],
-        'zip_files': zip_files  # ← رابط ZIP لكل upload
-    })
+    return JsonResponse({'success': True, 'uploads': [{'id': u.id, 'name': u.original_filename} for u in uploads]})
 
 
 @login_required
@@ -107,6 +76,27 @@ def check_status(request, upload_id):
         'message': progress_data['message'],
         'groups_count': upload.groups.count()
     })
+
+
+@login_required
+def process_upload(request, upload_id):
+    upload = get_object_or_404(Upload, id=upload_id, user=request.user)
+
+    if upload.status in ['processing', 'completed']:
+        return JsonResponse({'success': False, 'message': 'الملف قيد المعالجة أو مكتمل بالفعل'})
+
+    def process():
+        upload.status = 'processing'
+        upload.save(update_fields=['status'])
+        service = BarcodeOCRService()
+        service.process_single_pdf(upload)
+        upload.status = 'completed'
+        upload.save(update_fields=['status'])
+
+    executor = ThreadPoolExecutor(max_workers=1)
+    executor.submit(process)
+
+    return JsonResponse({'success': True, 'message': 'تم بدء المعالجة'})
 
 
 @login_required
@@ -135,29 +125,29 @@ def download_file(request, upload_id):
         return JsonResponse({'success': False, 'error': 'الملف غير موجود'})
     return FileResponse(open(path, 'rb'), as_attachment=True, filename=upload.original_filename)
 
-@login_required
-def process_upload(request, upload_id):
-    upload = get_object_or_404(Upload, id=upload_id, user=request.user)
+# @login_required
+# def process_upload(request, upload_id):
+#     upload = get_object_or_404(Upload, id=upload_id, user=request.user)
 
-    if upload.status in ['processing', 'completed']:
-        return JsonResponse({'success': False, 'message': 'الملف قيد المعالجة أو مكتمل بالفعل'})
+#     if upload.status in ['processing', 'completed']:
+#         return JsonResponse({'success': False, 'message': 'الملف قيد المعالجة أو مكتمل بالفعل'})
 
-    try:
-        upload.status = 'processing'
-        upload.save(update_fields=['status'])
+#     try:
+#         upload.status = 'processing'
+#         upload.save(update_fields=['status'])
 
-        service = BarcodeOCRService()
-        service.process_pdf(upload)
+#         service = BarcodeOCRService()
+#         service.process_pdf(upload)
 
-        upload.status = 'completed'
-        upload.save(update_fields=['status'])
-    except Exception as e:
-        upload.status = 'failed'
-        upload.message = str(e)
-        upload.save(update_fields=['status', 'message'])
-        return JsonResponse({'success': False, 'message': str(e)})
+#         upload.status = 'completed'
+#         upload.save(update_fields=['status'])
+#     except Exception as e:
+#         upload.status = 'failed'
+#         upload.message = str(e)
+#         upload.save(update_fields=['status', 'message'])
+#         return JsonResponse({'success': False, 'message': str(e)})
 
-    return JsonResponse({'success': True, 'message': 'تمت المعالجة بنجاح'})
+#     return JsonResponse({'success': True, 'message': 'تمت المعالجة بنجاح'})
 
 
 @login_required
@@ -237,6 +227,7 @@ def dashboard_view(request):
 # ============================
 
 def login_view(request):
+    context = {'title': 'تسجيل الدخول'} 
     if request.method == 'POST':
         username = request.POST.get('username') or request.POST.get('email')
         password = request.POST.get('password')
@@ -251,6 +242,7 @@ def login_view(request):
 
 
 def register_view(request):
+    context = {'title': 'إنشاء حساب'}
     if request.method == 'POST':
         username = request.POST.get("username")
         email = request.POST.get("email")
