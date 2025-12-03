@@ -15,6 +15,7 @@ from .models import Upload, Group
 from .services import BarcodeOCRService
 from concurrent.futures import ThreadPoolExecutor
 from django.views.decorators.csrf import csrf_exempt
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -26,62 +27,91 @@ logger = logging.getLogger(__name__)
 @csrf_exempt
 @login_required
 def upload_create(request):
+    """رفع الملفات - إصلاح خطأ 500"""
     if request.method == 'POST':
-        print(f"DEBUG: بدء رفع الملفات - المستخدم: {request.user}")
-        
-        # استقبال الملفات
-        files = request.FILES.getlist('file[]')
-        
-        if not files:
-            files = request.FILES.getlist('file')
-        
-        print(f"DEBUG: عدد الملفات المستلمة: {len(files)}")
-        
-        if not files:
+        try:
+            print(f"DEBUG: بدء رفع الملفات - المستخدم: {request.user}")
+            
+            # استقبال الملفات
+            files = []
+            
+            # جرب جميع الأسماء الممكنة للملفات
+            if 'file[]' in request.FILES:
+                files = request.FILES.getlist('file[]')
+                print(f"DEBUG: Found files as 'file[]': {len(files)}")
+            elif 'file' in request.FILES:
+                files = request.FILES.getlist('file')
+                print(f"DEBUG: Found files as 'file': {len(files)}")
+            else:
+                # طباعة جميع المفاتيح المتاحة للتصحيح
+                print(f"DEBUG: Available FILES keys: {list(request.FILES.keys())}")
+            
+            if not files:
+                return JsonResponse({
+                    'success': False, 
+                    'message': 'لم يتم إرسال ملفات.',
+                    'debug_info': {
+                        'files_keys': list(request.FILES.keys()),
+                        'user': str(request.user)
+                    }
+                })
+
+            uploads = []
+            for f in files:
+                try:
+                    print(f"DEBUG: معالجة الملف: {f.name} - حجم: {f.size} بايت")
+                    
+                    # إنشاء اسم فريد
+                    import uuid
+                    unique_name = f"{uuid.uuid4().hex}_{f.name}"
+                    
+                    # تأكد من وجود مجلد الرفع
+                    upload_dir = Path(settings.PRIVATE_MEDIA_ROOT)
+                    upload_dir.mkdir(parents=True, exist_ok=True)
+                    
+                    upload_path = upload_dir / unique_name
+                    
+                    # حفظ الملف
+                    with open(upload_path, 'wb+') as dest:
+                        for chunk in f.chunks():
+                            dest.write(chunk)
+                    
+                    print(f"DEBUG: تم حفظ الملف في: {upload_path}")
+                    
+                    # إنشاء سجل في قاعدة البيانات
+                    upload = Upload.objects.create(
+                        user=request.user,
+                        original_filename=f.name,
+                        stored_filename=unique_name,
+                        status='pending',
+                        progress=0
+                    )
+                    uploads.append(upload)
+                    
+                    print(f"DEBUG: تم إنشاء سجل upload: {upload.id}")
+                    
+                except Exception as e:
+                    print(f"ERROR: خطأ في معالجة {f.name}: {str(e)}")
+                    print(traceback.format_exc())
+                    continue
+
             return JsonResponse({
-                'success': False, 
-                'message': 'لم يتم إرسال ملفات.'
+                'success': True, 
+                'message': f'تم رفع {len(uploads)} ملف بنجاح',
+                'uploads': [{'id': u.id, 'name': u.original_filename} for u in uploads]
             })
+            
+        except Exception as e:
+            print(f"CRITICAL ERROR في upload_create: {str(e)}")
+            print(traceback.format_exc())
+            return JsonResponse({
+                'success': False,
+                'message': 'حدث خطأ داخلي في الخادم',
+                'error': str(e)
+            }, status=500)
 
-        uploads = []
-        for f in files:
-            try:
-                print(f"DEBUG: معالجة الملف: {f.name}")
-                
-                # إنشاء اسم فريد
-                unique_name = f"{uuid.uuid4().hex}_{f.name}"
-                upload_path = Path(settings.PRIVATE_MEDIA_ROOT) / unique_name
-                
-                # إنشاء المجلد
-                upload_path.parent.mkdir(parents=True, exist_ok=True)
-                
-                # حفظ الملف (نسخ مباشر لسرعة أكبر)
-                with open(upload_path, 'wb+') as dest:
-                    for chunk in f.chunks():
-                        dest.write(chunk)
-                
-                # إنشاء سجل في قاعدة البيانات
-                upload = Upload.objects.create(
-                    user=request.user,
-                    original_filename=f.name,
-                    stored_filename=unique_name,
-                    status='pending',
-                    progress=0
-                )
-                uploads.append(upload)
-                
-                print(f"DEBUG: تم إنشاء upload: {upload.id}")
-                
-            except Exception as e:
-                logger.error(f"Error processing {f.name}: {str(e)}")
-                continue
-
-        return JsonResponse({
-            'success': True, 
-            'message': f'تم رفع {len(uploads)} ملف بنجاح',
-            'uploads': [{'id': u.id, 'name': u.original_filename} for u in uploads]
-        })
-
+    # GET request - عرض الصفحة فقط
+    print(f"DEBUG: GET request لـ upload_create من المستخدم: {request.user}")
     return render(request, 'uploads/create.html')
 
 @login_required
