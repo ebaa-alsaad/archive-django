@@ -27,28 +27,37 @@ def upload_list(request):
 @login_required
 def upload_create(request):
     if request.method == 'POST':
-        files = request.FILES.getlist('file')  # تأكد من تطابق المفتاح مع JS
+        files = request.FILES.getlist('file')
         uploads = []
 
         for f in files:
-            original_filename = f.name
-            unique_id = uuid.uuid4().hex[:8]
-            stored_filename = f"{timezone.now().strftime('%Y%m%d_%H%M%S')}_{unique_id}_{original_filename}"
-
-            upload_path = Path(settings.PRIVATE_MEDIA_ROOT) / stored_filename
+            upload = Upload.objects.create(
+                user=request.user,
+                original_filename=f.name,
+                stored_filename=f"{uuid.uuid4().hex}_{f.name}",
+                status='pending'
+            )
+            # حفظ مؤقت للمعالجة
+            upload_path = Path(settings.PRIVATE_MEDIA_ROOT) / upload.stored_filename
             upload_path.parent.mkdir(parents=True, exist_ok=True)
-
             with open(upload_path, 'wb+') as dest:
                 for chunk in f.chunks():
                     dest.write(chunk)
-
-            upload = Upload.objects.create(
-                user=request.user,
-                original_filename=original_filename,
-                stored_filename=stored_filename,
-                status='pending'
-            )
             uploads.append(upload)
+
+        # بدء المعالجة مباشرة (يمكن استخدام ThreadPoolExecutor للتوازي)
+        service = BarcodeOCRService()
+        for upload in uploads:
+            try:
+                upload.status = 'processing'
+                upload.save(update_fields=['status'])
+                service.process_single_pdf(upload)
+                upload.set_completed()
+            except Exception as e:
+                upload.status = 'failed'
+                upload.message = str(e)
+                upload.save(update_fields=['status','message'])
+                logger.exception(f"Failed processing upload {upload.id}")
 
         return JsonResponse({
             'success': True,
@@ -61,8 +70,7 @@ def upload_create(request):
 @login_required
 def check_status(request, upload_id):
     upload = get_object_or_404(Upload, id=upload_id, user=request.user)
-    cache_key = f"upload_{upload_id}_progress"
-    progress_data = cache.get(cache_key) or {
+    progress_data = cache.get(f"upload_{upload_id}_progress") or {
         'progress': upload.progress,
         'message': upload.message or '',
         'status': upload.status
@@ -74,6 +82,7 @@ def check_status(request, upload_id):
         'message': progress_data['message'],
         'groups_count': upload.groups.count()
     })
+
 
 @login_required
 def upload_detail(request, upload_id):

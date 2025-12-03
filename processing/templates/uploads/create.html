@@ -1,65 +1,57 @@
 {% extends "base.html" %}
 {% block content %}
 
-<h1>رفع ملفات PDF متعددة</h1>
 <input type="file" id="file-input" multiple>
 <button onclick="uploadFiles()">رفع الملفات</button>
-
 <div id="uploads"></div>
 
 <script>
-function uploadFiles() {
+function uploadFiles(){
     const files = document.getElementById('file-input').files;
-    for (let i = 0; i < files.length; i++) {
+    for(let i=0;i<files.length;i++){
         uploadFile(files[i]);
     }
 }
 
-function uploadFile(file) {
-    const container = document.createElement('div');
+function uploadFile(file){
+    const container=document.createElement('div');
     container.classList.add('progress-container');
-    const title = document.createElement('div');
-    title.textContent = file.name;
-    const bar = document.createElement('div');
-    bar.classList.add('progress-bar');
-    container.appendChild(title);
-    container.appendChild(bar);
+    const title=document.createElement('div'); title.textContent=file.name;
+    const bar=document.createElement('div'); bar.classList.add('progress-bar');
+    container.appendChild(title); container.appendChild(bar);
     document.getElementById('uploads').appendChild(container);
 
-    const formData = new FormData();
+    const formData=new FormData(); 
     formData.append('file', file);
 
     fetch('/uploads/create/', {
-        method: 'POST',
-        body: formData,
-        headers: { 'X-CSRFToken': getCookie('csrftoken') }
+        method:'POST',
+        body:formData,
+        headers:{'X-CSRFToken':getCookie('csrftoken')}
     })
-    .then(res => res.json())
-    .then(data => {
-        if(data.success && data.uploads.length > 0){
+    .then(res=>res.json())
+    .then(data=>{
+        if(data.success && data.uploads.length>0){
             const upload_id = data.uploads[0].id;
-            const interval = setInterval(() => {
-                fetch(`/uploads/${upload_id}/status/`)
-                .then(r => r.json())
-                .then(p => {
-                    bar.style.width = p.progress + '%';
-                    bar.textContent = Math.round(p.progress) + '%';
-                    if(p.progress >= 100) clearInterval(interval);
+            const interval = setInterval(()=>{
+                fetch(`/uploads/${upload_id}/status/`).then(r=>r.json()).then(p=>{
+                    bar.style.width=p.progress+'%';
+                    bar.textContent=Math.round(p.progress)+'%';
+                    if(p.progress>=100) clearInterval(interval);
                 });
-            }, 500);
+            },500);
         }
     });
 }
 
-// دالة لجلب csrf token
-function getCookie(name) {
-    let cookieValue = null;
-    if (document.cookie && document.cookie !== '') {
-        const cookies = document.cookie.split(';');
-        for (let cookie of cookies) {
-            cookie = cookie.trim();
-            if (cookie.startsWith(name + '=')) {
-                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+function getCookie(name){
+    let cookieValue=null;
+    if(document.cookie && document.cookie!==''){
+        const cookies=document.cookie.split(';');
+        for(let cookie of cookies){
+            cookie=cookie.trim();
+            if(cookie.startsWith(name+'=')){
+                cookieValue=decodeURIComponent(cookie.substring(name.length+1));
                 break;
             }
         }
@@ -69,8 +61,8 @@ function getCookie(name) {
 </script>
 
 <style>
-.progress-container { margin-bottom: 10px; }
-.progress-bar { width: 0%; height: 20px; background-color: #4caf50; text-align: center; color: white; }
+.progress-container{margin-bottom:10px;}
+.progress-bar{width:0%;height:20px;background:#4caf50;text-align:center;color:white;}
 </style>
 
 {% endblock %}
