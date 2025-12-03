@@ -1,6 +1,8 @@
 import os
 import uuid
 import logging
+import traceback
+import zipfile
 from pathlib import Path
 from django.shortcuts import render, get_object_or_404, redirect
 from django.http import JsonResponse, FileResponse
@@ -24,46 +26,71 @@ def upload_list(request):
     uploads = Upload.objects.filter(user=request.user).order_by('-created_at')
     return render(request, 'uploads/list.html', {'uploads': uploads})
 
+
 @login_required
 def upload_create(request):
     if request.method != 'POST':
+        logger.warning("upload_create: non-POST request", extra={'path': request.path})
         return JsonResponse({'success': False, 'message': 'طريقة الطلب غير صحيحة.'}, status=400)
+
+    # لوق لمساعدة التشخيص
+    logger.debug("upload_create: CONTENT_LENGTH=%s, CONTENT_TYPE=%s, META=%s",
+                 request.META.get('CONTENT_LENGTH'), request.META.get('CONTENT_TYPE'),
+                 {k: v for k, v in request.META.items() if k.startswith('HTTP_')})
 
     files = request.FILES.getlist('file')
     if not files:
+        logger.warning("upload_create: no files in request.FILES keys=%s", list(request.FILES.keys()))
         return JsonResponse({'success': False, 'message': 'لم يتم إرسال ملفات.'}, status=400)
 
     uploads = []
     service = BarcodeOCRService()
 
     for f in files:
-        unique_name = f"{uuid.uuid4().hex}_{f.name}"
-        upload_path = Path(settings.PRIVATE_MEDIA_ROOT) / unique_name
-        upload_path.parent.mkdir(parents=True, exist_ok=True)
-
-        with open(upload_path, 'wb+') as dest:
-            for chunk in f.chunks():
-                dest.write(chunk)
-
-        upload = Upload.objects.create(
-            user=request.user,
-            original_filename=f.name,
-            stored_filename=unique_name,
-            status='pending'
-        )
-        uploads.append(upload)
-
-        # يمكنك معالجة الملف في Thread لاحقًا لتجنب تعليق الرفع
         try:
+            unique_name = f"{uuid.uuid4().hex}_{f.name}"
+            upload_path = Path(settings.PRIVATE_MEDIA_ROOT) / unique_name
+            upload_path.parent.mkdir(parents=True, exist_ok=True)
+
+            # سجل حجم الملف
+            logger.info("Saving upload file: name=%s size=%s", f.name, getattr(f, 'size', 'unknown'))
+
+            with open(upload_path, 'wb+') as dest:
+                for chunk in f.chunks():
+                    dest.write(chunk)
+
+            upload = Upload.objects.create(
+                user=request.user,
+                original_filename=f.name,
+                stored_filename=unique_name,
+                status='pending'
+            )
+            uploads.append(upload)
+
+            # معالجة متزامنة (يمكن تحويلها لاحقاً لثريد أو مهمة خلفية)
             upload.status = 'processing'
             upload.save(update_fields=['status'])
-            service.process_single_pdf(upload)
-            upload.set_completed()
+            try:
+                # بعض الإصدارات من السيرفيس قد تطلق process_pdf أو process_single_pdf
+                if hasattr(service, 'process_single_pdf'):
+                    service.process_single_pdf(upload)
+                else:
+                    service.process_pdf(upload)
+                upload.set_completed()
+            except Exception as exc_proc:
+                upload.status = 'failed'
+                upload.message = str(exc_proc)
+                upload.save(update_fields=['status', 'message'])
+                logger.exception("Processing failed for upload %s: %s", upload.id, exc_proc)
+
         except Exception as e:
-            upload.status = 'failed'
-            upload.message = str(e)
-            upload.save(update_fields=['status', 'message'])
-            logger.exception(f"Failed processing upload {upload.id}")
+            logger.exception("upload_create: failed while handling file %s", getattr(f, 'name', 'unknown'))
+            return JsonResponse({
+                'success': False,
+                'message': 'خطأ أثناء حفظ الملف أو المعالجة.',
+                'detail': str(e),
+                'trace': traceback.format_exc()
+            }, status=500)
 
     return JsonResponse({'success': True, 'uploads': [{'id': u.id, 'name': u.original_filename} for u in uploads]})
 
