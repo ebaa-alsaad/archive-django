@@ -174,3 +174,61 @@ def download_group_file(request, upload_id, group_id):
 
     filename = group.filename or f"group_{group.id}.pdf"
     return FileResponse(open(pdf_path, 'rb'), as_attachment=True, filename=filename)
+
+
+# ============================
+# Dashboard
+# ============================
+
+@login_required
+def dashboard_view(request):
+    uploads_count = Upload.objects.filter(user=request.user).count()
+    groups_count = Group.objects.filter(user=request.user).count()
+    processing_uploads = Upload.objects.filter(user=request.user, status='processing').count()
+    completed_uploads = Upload.objects.filter(user=request.user, status='completed').count()
+    latest_uploads = Upload.objects.filter(user=request.user).order_by('-created_at')[:10]
+
+    return render(request, 'dashboard.html', {
+        'uploads_count': uploads_count,
+        'groups_count': groups_count,
+        'processing_uploads': processing_uploads,
+        'completed_uploads': completed_uploads,
+        'uploads': latest_uploads,
+    })
+
+
+# ============================
+# Auth Views
+# ============================
+
+def login_view(request):
+    if request.method == 'POST':
+        username = request.POST.get('username') or request.POST.get('email')
+        password = request.POST.get('password')
+        user = authenticate(request, username=username, password=password)
+        if user:
+            login(request, user)
+            if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+                return JsonResponse({'success': True})
+            return redirect('dashboard')
+        return render(request, 'auth/login.html', {'error': 'بيانات الدخول غير صحيحة.'})
+    return render(request, 'auth/login.html')
+
+
+def register_view(request):
+    if request.method == 'POST':
+        username = request.POST.get("username")
+        email = request.POST.get("email")
+        password = request.POST.get("password")
+        password2 = request.POST.get("password2")
+
+        if password != password2:
+            return JsonResponse({'success': False, 'message': 'كلمة المرور غير متطابقة.'})
+        if User.objects.filter(username=username).exists():
+            return JsonResponse({'success': False, 'message': 'اسم المستخدم موجود مسبقاً.'})
+
+        user = User.objects.create_user(username=username, email=email, password=password)
+        login(request, user)
+        return JsonResponse({'success': True, 'message': 'تم إنشاء الحساب بنجاح!', 'redirect_url': '/dashboard/'})
+
+    return render(request, "auth/register.html")
