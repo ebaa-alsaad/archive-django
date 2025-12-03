@@ -1,102 +1,165 @@
 {% extends "base.html" %}
 {% block content %}
 
-<input type="file" id="file-input" multiple>
-<button onclick="uploadFiles()">رفع الملفات</button>
-<div id="uploads"></div>
+<div class="max-w-4xl mx-auto space-y-8">
+
+    <h2 class="text-4xl font-extrabold text-gray-800 text-center">
+        <i class="fa-solid fa-cloud-arrow-up text-blue-600 ml-3"></i> رفع ملفات PDF متعددة
+    </h2>
+
+    <div id="toast-container" class="fixed top-5 right-5 z-[100] space-y-2 max-w-sm"></div>
+
+    <!-- كرت الرفع -->
+    <div id="upload-card" class="bg-white p-8 rounded-2xl shadow-xl border border-gray-100">
+        <form id="upload-form" class="space-y-6" enctype="multipart/form-data">
+            {% csrf_token %}
+
+            <div class="mb-6">
+                <input id="file-input" type="file" name="file" accept="application/pdf" class="hidden" multiple/>
+
+                <div id="drop-zone"
+                     class="flex flex-col items-center justify-center w-full h-64 border-3 border-dashed border-gray-300 bg-gray-50 hover:bg-gray-100 rounded-2xl cursor-pointer transition-all">
+                    <div class="flex flex-col items-center justify-center text-center px-6">
+                        <i id="upload-icon" class="fa-solid fa-file-arrow-up text-6xl mb-4 text-blue-500"></i>
+                        <p class="mb-2 text-xl text-gray-700 font-bold">
+                            <span class="text-blue-700">اسحب وأفلت ملفات PDF</span> أو انقر للتحميل
+                        </p>
+                        <p class="text-sm text-gray-500 mb-2">يمكنك رفع عدة ملفات دفعة واحدة</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- قائمة الملفات -->
+            <ul id="file-list" class="space-y-3 hidden"></ul>
+
+            <button type="submit" id="start-archiving"
+                    disabled
+                    class="w-full bg-gradient-to-r from-blue-600 to-blue-500 text-white px-8 py-4 rounded-xl font-bold text-lg shadow-lg disabled:opacity-50 hover:from-blue-700 hover:to-blue-600 transition-all">
+                <i class="fa-solid fa-paper-plane ml-2"></i> بدء رفع الملفات
+            </button>
+
+        </form>
+    </div>
+
+    <!-- النتائج -->
+    <div id="results-container" class="hidden bg-green-50 p-6 rounded-2xl border border-green-200">
+        <div class="text-center">
+            <i class="fa-solid fa-circle-check text-green-500 text-4xl mb-3"></i>
+            <h3 class="text-xl font-bold text-green-800 mb-2">تم رفع الملفات بنجاح!</h3>
+            <p class="text-green-600 mb-2" id="results-message"></p>
+        </div>
+    </div>
+
+    <div id="error-container" class="hidden bg-red-50 p-6 rounded-2xl border border-red-200">
+        <div class="text-center">
+            <i class="fa-solid fa-circle-exclamation text-red-500 text-4xl mb-3"></i>
+            <h3 class="text-xl font-bold text-red-800 mb-2">فشل الرفع</h3>
+            <p class="text-red-600 mb-4" id="error-message"></p>
+        </div>
+    </div>
+
+</div>
 
 <script>
-function getCsrfToken() {
-    const meta = document.querySelector('meta[name="csrf-token"]');
-    if (meta && meta.getAttribute('content')) return meta.getAttribute('content');
+/* ــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــ
+               نسخة MULTI FILE كاملة تعمل مع Django
+ ــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــ */
 
-    // fallback to cookie
-    function getCookie(name) {
-        const v = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)');
-        return v ? decodeURIComponent(v.pop()) : null;
-    }
-    return getCookie('csrftoken');
-}
+const fileInput = document.getElementById("file-input");
+const dropZone = document.getElementById("drop-zone");
+const fileList = document.getElementById("file-list");
+const startBtn = document.getElementById("start-archiving");
+const resultsContainer = document.getElementById("results-container");
+const errorContainer = document.getElementById("error-container");
 
-const csrftoken = getCsrfToken();
+let selectedFiles = [];
 
-function uploadFiles(){
-    const files = document.getElementById('file-input').files;
-    for(let i=0;i<files.length;i++){
-        uploadFile(files[i]);
-    }
-}
+function renderFileList() {
+    fileList.innerHTML = "";
+    fileList.classList.toggle("hidden", selectedFiles.length === 0);
 
-function uploadFile(file){
-    const container = document.createElement('div');
-    container.classList.add('progress-container');
+    selectedFiles.forEach((file, index) => {
+        const li = document.createElement("li");
+        li.className =
+            "flex justify-between items-center bg-white border border-gray-200 rounded-xl p-3 shadow-sm";
 
-    const title = document.createElement('div');
-    title.textContent = file.name;
+        li.innerHTML = `
+            <div>
+                <p class="font-semibold text-gray-800">${file.name}</p>
+                <p class="text-sm text-gray-500">${(file.size / 1024 / 1024).toFixed(2)} MB</p>
+            </div>
+            <button class="text-red-600 hover:text-red-800" onclick="removeFile(${index})">
+                <i class="fa-solid fa-trash"></i>
+            </button>
+        `;
 
-    const bar = document.createElement('div');
-    bar.classList.add('progress-bar');
-
-    const statusText = document.createElement('div');
-    statusText.classList.add('status-text');
-    statusText.textContent = 'انتظار...';
-
-    container.appendChild(title);
-    container.appendChild(bar);
-    container.appendChild(statusText);
-
-    document.getElementById('uploads').appendChild(container);
-
-    const formData = new FormData();
-    formData.append('file', file);
-
-    fetch("{% url 'processing:upload_create' %}", {
-        method: 'POST',
-        body: formData,
-        headers: { 'X-CSRFToken': csrftoken }
-    })
-    .then(res => res.json().catch(() => { 
-        throw new Error('الرد ليس JSON، تحقق من السيرفر'); 
-    }))
-    .then(data => {
-        if(!data.success){
-            statusText.textContent = data.message || 'خطأ غير معروف';
-            bar.style.background = 'red';
-            return;
-        }
-
-        const upload_id = data.uploads[0].id;
-        statusText.textContent = 'جاري المعالجة...';
-
-        const interval = setInterval(() => {
-            fetch(`/uploads/${upload_id}/status/`)
-            .then(r => r.json())
-            .then(p => {
-                bar.style.width = p.progress+'%';
-                bar.textContent = Math.round(p.progress)+'%';
-
-                statusText.textContent = p.status;
-                if(p.progress >= 100 || p.status === 'failed') clearInterval(interval);
-
-                if(p.status === 'failed'){
-                    bar.style.background = 'red';
-                    statusText.textContent = 'فشل في المعالجة: ' + p.message;
-                }
-            });
-        }, 500);
-    })
-    .catch(err => {
-        console.error(err);
-        statusText.textContent = 'خطأ في رفع الملف: ' + err.message;
-        bar.style.background = 'red';
+        fileList.appendChild(li);
     });
 }
-</script>
 
-<style>
-.progress-container { margin-bottom:10px; }
-.progress-bar { width:0%; height:20px; background:#4caf50; text-align:center; color:white; }
-.status-text { font-size: 12px; margin-top: 2px; }
-</style>
+function removeFile(index) {
+    selectedFiles.splice(index, 1);
+    renderFileList();
+    startBtn.disabled = selectedFiles.length === 0;
+}
+
+fileInput.addEventListener("change", () => {
+    selectedFiles = [...selectedFiles, ...fileInput.files];
+    renderFileList();
+    startBtn.disabled = selectedFiles.length === 0;
+});
+
+dropZone.addEventListener("click", () => fileInput.click());
+dropZone.addEventListener("dragover", (e) => {
+    e.preventDefault();
+    dropZone.classList.add("bg-blue-50", "border-blue-500");
+});
+dropZone.addEventListener("dragleave", () => {
+    dropZone.classList.remove("bg-blue-50", "border-blue-500");
+});
+dropZone.addEventListener("drop", (e) => {
+    e.preventDefault();
+    dropZone.classList.remove("bg-blue-50", "border-blue-500");
+
+    selectedFiles = [...selectedFiles, ...e.dataTransfer.files];
+    renderFileList();
+    startBtn.disabled = selectedFiles.length === 0;
+});
+
+document.getElementById("upload-form").addEventListener("submit", async function (e) {
+    e.preventDefault();
+
+    const formData = new FormData();
+
+    selectedFiles.forEach((file) => formData.append("file", file));
+
+    startBtn.disabled = true;
+    startBtn.innerHTML = "جاري الرفع...";
+
+    const response = await fetch("{% url 'processing:upload_create' %}", {
+        method: "POST",
+        body: formData,
+        headers: { "X-CSRFToken": "{{ csrf_token }}" }
+    });
+
+    const data = await response.json();
+
+    if (!data.success) {
+        document.getElementById("error-message").textContent = data.message;
+        errorContainer.classList.remove("hidden");
+        return;
+    }
+
+    resultsContainer.classList.remove("hidden");
+    document.getElementById("results-message").textContent =
+        `تم رفع ${data.uploads.length} ملف بنجاح`;
+
+    startBtn.disabled = false;
+    startBtn.innerHTML = "بدء رفع الملفات";
+
+    selectedFiles = [];
+    renderFileList();
+});
+</script>
 
 {% endblock %}
