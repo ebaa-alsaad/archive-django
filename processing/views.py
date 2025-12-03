@@ -15,7 +15,6 @@ from .models import Upload, Group
 from .services import BarcodeOCRService
 from concurrent.futures import ThreadPoolExecutor
 
-
 logger = logging.getLogger(__name__)
 
 # ============================
@@ -29,9 +28,11 @@ def upload_list(request):
 
 @login_required
 def upload_create(request):
-    if request.method != 'POST':
-        return JsonResponse({'success': False, 'message': 'طريقة الطلب غير صحيحة.'}, status=400)
+    if request.method == 'GET':
+        # فتح صفحة الفورم
+        return render(request, 'uploads/create.html')
 
+    # إذا كان POST، يتم رفع الملفات
     files = request.FILES.getlist('file')
     if not files:
         return JsonResponse({'success': False, 'message': 'لم يتم إرسال ملفات.'}, status=400)
