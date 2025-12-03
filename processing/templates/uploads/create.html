@@ -1,6 +1,5 @@
 {% extends "base.html" %}
 {% block content %}
-
 <div class="max-w-4xl mx-auto space-y-8">
 
     <h2 class="text-4xl font-extrabold text-gray-800 text-center">
@@ -9,55 +8,38 @@
 
     <div id="toast-container" class="fixed top-5 right-5 z-[100] space-y-2 max-w-sm"></div>
 
-    <!-- كرت الرفع -->
     <div id="upload-card" class="bg-white p-8 rounded-2xl shadow-xl border border-gray-100">
-        <form id="upload-form" class="space-y-6" enctype="multipart/form-data" method="post" action="{% url 'processing:upload_create' %}">
+        <form id="upload-form" enctype="multipart/form-data">
             {% csrf_token %}
-
-            <div class="mb-6">
-                <input id="file-input" type="file" name="file" accept="application/pdf" class="hidden" multiple/>
-
-                <div id="drop-zone"
-                     class="flex flex-col items-center justify-center w-full h-64 border-3 border-dashed border-gray-300 bg-gray-50 hover:bg-gray-100 rounded-2xl cursor-pointer transition-all">
-                    <div class="flex flex-col items-center justify-center text-center px-6">
-                        <i id="upload-icon" class="fa-solid fa-file-arrow-up text-6xl mb-4 text-blue-500"></i>
-                        <p class="mb-2 text-xl text-gray-700 font-bold">
-                            <span class="text-blue-700">اسحب وأفلت ملفات PDF</span> أو انقر للتحميل
-                        </p>
-                        <p class="text-sm text-gray-500 mb-2">يمكنك رفع عدة ملفات دفعة واحدة</p>
-                    </div>
+            <input id="file-input" type="file" name="file" accept="application/pdf" class="hidden" multiple/>
+            <div id="drop-zone"
+                 class="flex flex-col items-center justify-center w-full h-64 border-3 border-dashed border-gray-300 bg-gray-50 hover:bg-gray-100 rounded-2xl cursor-pointer transition-all">
+                <div class="text-center">
+                    <i class="fa-solid fa-file-arrow-up text-6xl mb-4 text-blue-500"></i>
+                    <p class="text-xl font-bold text-gray-700">
+                        اسحب وأفلت ملفات PDF أو انقر للتحميل
+                    </p>
+                    <p class="text-sm text-gray-500">يمكنك رفع عدة ملفات دفعة واحدة</p>
                 </div>
             </div>
 
-            <!-- قائمة الملفات -->
             <ul id="file-list" class="space-y-3 hidden"></ul>
 
             <button type="submit" id="start-archiving"
                     disabled
                     class="w-full bg-gradient-to-r from-blue-600 to-blue-500 text-white px-8 py-4 rounded-xl font-bold text-lg shadow-lg disabled:opacity-50 hover:from-blue-700 hover:to-blue-600 transition-all">
-                <i class="fa-solid fa-paper-plane ml-2"></i> بدء رفع الملفات
+                بدء رفع الملفات
             </button>
-
         </form>
     </div>
 
-    <!-- النتائج -->
     <div id="results-container" class="hidden bg-green-50 p-6 rounded-2xl border border-green-200">
         <div class="text-center">
             <i class="fa-solid fa-circle-check text-green-500 text-4xl mb-3"></i>
             <h3 class="text-xl font-bold text-green-800 mb-2">تم رفع الملفات بنجاح!</h3>
-            <p class="text-green-600 mb-2" id="results-message"></p>
+            <div id="results-list"></div>
         </div>
     </div>
-
-    <div id="error-container" class="hidden bg-red-50 p-6 rounded-2xl border border-red-200">
-        <div class="text-center">
-            <i class="fa-solid fa-circle-exclamation text-red-500 text-4xl mb-3"></i>
-            <h3 class="text-xl font-bold text-red-800 mb-2">فشل الرفع</h3>
-            <p class="text-red-600 mb-4" id="error-message"></p>
-        </div>
-    </div>
-
 </div>
 
 <script>
@@ -66,10 +48,9 @@ const dropZone = document.getElementById("drop-zone");
 const fileList = document.getElementById("file-list");
 const startBtn = document.getElementById("start-archiving");
 const resultsContainer = document.getElementById("results-container");
+const resultsList = document.getElementById("results-list");
 
 let selectedFiles = [];
-let uploadIds = [];
-let progressInterval = null;
 
 // ------------------------ عرض الملفات ------------------------
 function renderFileList() {
@@ -78,31 +59,22 @@ function renderFileList() {
 
     selectedFiles.forEach((file, index) => {
         const li = document.createElement("li");
-        li.className = "bg-white border border-gray-200 rounded-xl p-3 shadow-sm space-y-2";
+        li.className = "bg-white border border-gray-200 rounded-xl p-3 shadow-sm flex justify-between items-center";
         li.innerHTML = `
-            <div class="flex justify-between items-center">
-                <div>
-                    <p class="font-semibold text-gray-800">${file.name}</p>
-                    <p class="text-sm text-gray-500">${(file.size / 1024 / 1024).toFixed(2)} MB</p>
-                </div>
-                <button class="text-red-600 hover:text-red-800" onclick="removeFile(${index})">
-                    <i class="fa-solid fa-trash"></i>
-                </button>
+            <div>
+                <p class="font-semibold text-gray-800">${file.name}</p>
+                <p class="text-sm text-gray-500">${(file.size / 1024 / 1024).toFixed(2)} MB</p>
             </div>
-            <div class="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
-                <div id="progress-${index}" class="bg-blue-600 h-3 w-0 transition-all duration-200"></div>
-            </div>
-            <p id="progress-text-${index}" class="text-xs text-gray-500 text-right">0%</p>
-            <div id="groups-${index}" class="mt-2 space-y-1"></div>
+            <button class="text-red-600 hover:text-red-800" onclick="removeFile(${index})">
+                <i class="fa-solid fa-trash"></i>
+            </button>
         `;
         fileList.appendChild(li);
     });
 }
 
-// ------------------------ حذف ملف ------------------------
 function removeFile(index) {
     selectedFiles.splice(index, 1);
-    uploadIds.splice(index, 1);
     renderFileList();
     startBtn.disabled = selectedFiles.length === 0;
 }
@@ -113,7 +85,6 @@ fileInput.addEventListener("change", () => {
     renderFileList();
     startBtn.disabled = selectedFiles.length === 0;
 });
-
 dropZone.addEventListener("click", () => fileInput.click());
 dropZone.addEventListener("dragover", (e) => { e.preventDefault(); dropZone.classList.add("bg-blue-50", "border-blue-500"); });
 dropZone.addEventListener("dragleave", () => { dropZone.classList.remove("bg-blue-50", "border-blue-500"); });
@@ -125,115 +96,45 @@ dropZone.addEventListener("drop", (e) => {
     startBtn.disabled = selectedFiles.length === 0;
 });
 
-// ------------------------ رفع الملفات ------------------------
-document.getElementById("upload-form").addEventListener("submit", async function (e) {
+// ------------------------ رفع الملفات دفعة واحدة ------------------------
+document.getElementById("upload-form").addEventListener("submit", async function(e){
     e.preventDefault();
     startBtn.disabled = true;
-    startBtn.innerHTML = "جاري الرفع...";
+    startBtn.textContent = "جاري الرفع...";
+    resultsContainer.classList.add("hidden");
+    resultsList.innerHTML = "";
 
-    uploadIds = [];
+    const formData = new FormData();
+    selectedFiles.forEach(file => formData.append("file", file));
+    formData.append("csrfmiddlewaretoken", document.querySelector('[name=csrfmiddlewaretoken]').value);
 
-    for (let i = 0; i < selectedFiles.length; i++) {
-        const formData = new FormData();
-        formData.append("file", selectedFiles[i]);
-
-        await new Promise((resolve, reject) => {
-            const xhr = new XMLHttpRequest();
-            xhr.open("POST", "{% url 'processing:upload_create' %}");
-            function getCSRFToken() {
-                return document.querySelector('[name=csrfmiddlewaretoken]').value;
-            }
-
-            xhr.setRequestHeader("X-CSRFToken", getCSRFToken());
-
-
-            xhr.onload = () => {
-                if (xhr.status === 200) {
-                    const data = JSON.parse(xhr.responseText);
-                    if(data.success && data.uploads.length > 0){
-                        uploadIds.push(data.uploads[0].id);
-                    }
-                    resolve();
-                } else reject("Upload failed");
-            };
-            xhr.onerror = () => reject("Network Error");
-            xhr.send(formData);
+    try {
+        const res = await fetch("{% url 'processing:upload_create' %}", {
+            method: "POST",
+            body: formData
         });
-    }
+        const data = await res.json();
 
-    // بدء متابعة التقدم لكل ملف
-    if(progressInterval) clearInterval(progressInterval);
-    progressInterval = setInterval(updateProgress, 1000);
-
-    resultsContainer.classList.remove("hidden");
-    resultsContainer.innerHTML = `<p class="font-bold mb-2">تم رفع ${selectedFiles.length} ملف بنجاح</p>`;
-});
-
-// ------------------------ تحديث التقدم ------------------------
-async function updateProgress() {
-    if(uploadIds.length === 0){
-        clearInterval(progressInterval);
-        return;
-    }
-
-    let allCompleted = true;
-
-    for (let i = 0; i < uploadIds.length; i++) {
-        const uploadId = uploadIds[i];
-        try {
-            const res = await fetch(`/uploads/${uploadId}/status/`);
-            if(!res.ok) continue;
-            const data = await res.json();
-
-            const progressEl = document.getElementById(`progress-${i}`);
-            const textEl = document.getElementById(`progress-text-${i}`);
-            if(progressEl && textEl){
-                progressEl.style.width = data.progress + "%";
-                textEl.textContent = data.progress + "%";
-            }
-
-            // تحديث جميع المجموعات داخل الملف
-            const groupsContainer = document.getElementById(`groups-${i}`);
-            if(groupsContainer && data.groups){
-                groupsContainer.innerHTML = ""; 
-                data.groups.forEach((g, idx) => {
-                    const div = document.createElement("div");
-                    div.className = "text-sm text-gray-600";
-                    div.textContent = `مجموعة ${idx+1}: ${g.pages_count} صفحة`;
-                    groupsContainer.appendChild(div);
-                });
-            }
-
-            if(data.progress < 100){
-                allCompleted = false;
-            } else {
-                // إضافة رابط ZIP عند اكتمال كل المجموعات
-                if(data.groups_count > 0 && !document.getElementById(`zip-link-${uploadId}`)){
-                    const link = document.createElement('a');
-                    link.href = `/uploads/${uploadId}/download_zip/`;
-                    link.id = `zip-link-${uploadId}`;
-                    link.download = `groups_${uploadId}.zip`;
-                    link.textContent = `تحميل مجموعات الملف ${uploadId}`;
-                    link.className = "block text-blue-700 font-bold mt-2";
-                    resultsContainer.appendChild(link);
-                }
-            }
-
-        } catch (err) {
-            console.warn("Progress fetch error:", err);
+        if(data.success){
+            resultsContainer.classList.remove("hidden");
+            data.uploads.forEach(u => {
+                const div = document.createElement("div");
+                div.className = "text-green-700 font-bold mb-1";
+                div.textContent = `تم رفع الملف: ${u.name}`;
+                resultsList.appendChild(div);
+            });
+            selectedFiles = [];
+            renderFileList();
+        } else {
+            alert("فشل الرفع: " + (data.message || "خطأ غير معروف"));
         }
-    }
 
-    if(allCompleted){
-        clearInterval(progressInterval);
-        startBtn.disabled = false;
-        startBtn.innerHTML = "بدء رفع الملفات";
-        selectedFiles = [];
-        uploadIds = [];
-        renderFileList();
+    } catch(err){
+        alert("حدث خطأ أثناء الرفع: " + err);
+    } finally {
+        startBtn.disabled = selectedFiles.length === 0;
+        startBtn.textContent = "بدء رفع الملفات";
     }
-}
+});
 </script>
-
-
 {% endblock %}

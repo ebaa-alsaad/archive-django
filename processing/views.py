@@ -28,26 +28,19 @@ def upload_list(request):
 
 @login_required
 def upload_create(request):
-    if request.method == 'GET':
-        # فتح صفحة الفورم
-        return render(request, 'uploads/create.html')
+    if request.method == 'POST':
+        files = request.FILES.getlist('file')
+        if not files:
+            return JsonResponse({'success': False, 'message': 'لم يتم إرسال ملفات.'})
 
-    # إذا كان POST، يتم رفع الملفات
-    files = request.FILES.getlist('file')
-    if not files:
-        return JsonResponse({'success': False, 'message': 'لم يتم إرسال ملفات.'}, status=400)
-
-    uploads = []
-    for f in files:
-        try:
+        uploads = []
+        for f in files:
             unique_name = f"{uuid.uuid4().hex}_{f.name}"
             upload_path = Path(settings.PRIVATE_MEDIA_ROOT) / unique_name
             upload_path.parent.mkdir(parents=True, exist_ok=True)
-
             with open(upload_path, 'wb+') as dest:
                 for chunk in f.chunks():
                     dest.write(chunk)
-
             upload = Upload.objects.create(
                 user=request.user,
                 original_filename=f.name,
@@ -56,11 +49,10 @@ def upload_create(request):
             )
             uploads.append(upload)
 
-        except Exception as e:
-            return JsonResponse({'success': False, 'message': str(e)}, status=500)
+        return JsonResponse({'success': True, 'uploads': [{'id': u.id, 'name': u.original_filename} for u in uploads]})
 
-    return JsonResponse({'success': True, 'uploads': [{'id': u.id, 'name': u.original_filename} for u in uploads]})
-
+    return render(request, 'uploads/create.html')
+ 
 
 @login_required
 def check_status(request, upload_id):
