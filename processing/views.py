@@ -20,6 +20,12 @@ import time
 logger = logging.getLogger(__name__)
 
 
+
+@login_required
+def upload_list(request):
+    uploads = Upload.objects.filter(user=request.user).order_by('-created_at')
+    return render(request, 'uploads/list.html', {'uploads': uploads})
+
 # ============================
 # Upload & Processing Views
 # ============================
