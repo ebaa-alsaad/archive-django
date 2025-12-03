@@ -4,7 +4,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>{{ title|default:"تسجيل الدخول" }}</title>
+<title>{{ title|default:"إنشاء حساب" }}</title>
 
 <link rel="icon" type="image/png" href="{% static 'images/favicon.png' %}">
 <script src="https://kit.fontawesome.com/a81368914c.js" crossorigin="anonymous"></script>
@@ -14,8 +14,6 @@
 
 <style>
 body { font-family: 'Cairo', sans-serif; }
-
-/* Shadow & Animations */
 .shadow-5xl { box-shadow: 0 50px 100px -25px rgba(0,0,0,0.2); }
 .opacity-0 { opacity: 0; }
 
@@ -23,156 +21,164 @@ body { font-family: 'Cairo', sans-serif; }
   0% { opacity: 0; transform: translateY(20px) scale(0.95); }
   100% { opacity: 1; transform: translateY(0) scale(1); }
 }
-.animate-slideUp {
-  animation: slideUp 0.8s cubic-bezier(0.25,0.46,0.45,0.94) forwards;
-  animation-delay: 0.2s;
-  will-change: transform, opacity;
-}
+.animate-slideUp { animation: slideUp 0.8s forwards; }
 
-@keyframes pulse-slow { 0%,100% {opacity:1;} 50% {opacity:0.8;} }
-.animate-pulse-slow { animation: pulse-slow 3s infinite ease-in-out; }
-
-.archive-3d-panel { perspective:1000px; overflow:hidden; box-shadow:inset 0 0 50px rgba(0,0,0,0.5); }
+.archive-3d-panel { perspective:1000px; overflow:hidden; }
 .archive-3d-flow {
     position:absolute; inset:0;
     background-image: repeating-linear-gradient(60deg,#ffffff1a,#ffffff1a 1px,transparent 1px,transparent 150px);
-    background-size:300% 300%; transform:rotateX(60deg) rotateZ(45deg) scale(2.5); transform-origin:0 0;
-    animation: flow-3d 30s linear infinite; opacity:0.4;
+    background-size:300% 300%;
+    animation: flow-3d 30s linear infinite;
 }
-@keyframes flow-3d { from {background-position:0% 0%;} to {background-position:200% 200%;} }
+@keyframes flow-3d { from {background-position:0 0;} to {background-position:200% 200%;} }
 
-.archive-extra-flow {
-    position:absolute; inset:-20%;
-    background: linear-gradient(90deg, transparent, rgba(66,135,245,0.2), transparent),
-                linear-gradient(45deg, transparent, rgba(255,255,255,0.1), transparent);
-    background-size:200% 200%; animation: extra-flow-move 50s linear infinite; opacity:0.8;
+input:focus ~ label, input:not(:placeholder-shown) ~ label {
+    transform: translateY(-1rem) scale(0.75);
 }
-@keyframes extra-flow-move { 0%{background-position:0% 0%;} 50%{background-position:100% 100%;} 100%{background-position:0% 0%;} }
-
-input:focus ~ label, input:not(:placeholder-shown) ~ label { transform: translateY(-1rem) scale(0.75); }
-
-.toast { transition: transform 0.3s ease-out, opacity 0.3s ease-out; transform: translateX(100%); opacity:0; }
-.toast-error { background-color: rgba(30,41,59,0.95); color:#fff; border-right:5px solid #ef4444; }
 </style>
 </head>
+
 <body class="bg-white dark:bg-gray-800">
 
 <div class="min-h-screen flex items-center justify-center relative p-4 overflow-hidden">
 
-    <!-- Toast Container -->
     <div id="toast-container" class="fixed top-5 right-5 z-50 space-y-3"></div>
 
-    <div class="z-10 w-full max-w-5xl mx-auto flex shadow-5xl rounded-3xl overflow-hidden bg-white dark:bg-gray-800 transform scale-90 opacity-0 animate-slideUp">
+    <div class="z-10 w-full max-w-5xl mx-auto flex shadow-5xl rounded-3xl overflow-hidden bg-white dark:bg-gray-800 opacity-0 animate-slideUp">
 
-        <!-- Right Panel -->
+        <!-- Right Panel (Form) -->
         <div class="w-full lg:w-3/5 p-10 sm:p-14 lg:p-20 flex flex-col justify-center dark:text-gray-100">
             <div class="mx-auto w-full max-w-md">
                 <div class="text-center mb-12">
-                    <h2 class="text-5xl font-extrabold text-gray-900 dark:text-white mb-3 tracking-tighter">تسجيل الدخول</h2>
-                    <p class="text-lg text-gray-600 dark:text-gray-400">الرجاء إدخال بياناتك لتسجيل الدخول.</p>
+                    <h2 class="text-5xl font-extrabold text-gray-900 dark:text-white mb-3">إنشاء حساب جديد</h2>
+                    <p class="text-lg text-gray-600 dark:text-gray-400">قم بإدخال بياناتك لإتمام التسجيل.</p>
                 </div>
 
-                <form id="login-form" method="POST" class="space-y-10">{% csrf_token %}
+                <form id="register-form" method="POST" class="space-y-10">{% csrf_token %}
 
-                    <!-- Username or Email -->
+                    <!-- Full Name -->
                     <div class="relative group">
-                        <input id="username" name="username" type="text" required placeholder=" " autocomplete="username"
-                               class="block w-full px-4 pt-6 pb-2 text-lg appearance-none bg-transparent border-b-2 border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-0 focus:border-blue-500 peer dark:text-white transition-all duration-300">
-                        <label for="username" class="absolute right-0 top-4 text-base text-gray-500 dark:text-gray-400 duration-300 transform -translate-y-4 scale-75 origin-top-right peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0 peer-focus:scale-75 peer-focus:-translate-y-4 peer-focus:text-blue-600 dark:peer-focus:text-blue-400">
-                            <i class="fa-solid fa-user mr-2"></i> اسم المستخدم أو البريد الإلكتروني
+                        <input id="full_name" name="full_name" type="text" required placeholder=" " 
+                               class="block w-full px-4 pt-6 pb-2 text-lg bg-transparent border-b-2 border-gray-300 focus:border-blue-500 peer transition">
+                        <label for="full_name" class="absolute right-0 top-4 text-base text-gray-500 transition transform origin-top-right">
+                            <i class="fa-solid fa-user mr-2"></i> الاسم الكامل
+                        </label>
+                    </div>
+
+                    <!-- Username -->
+                    <div class="relative group">
+                        <input id="username" name="username" type="text" required placeholder=" " 
+                               class="block w-full px-4 pt-6 pb-2 text-lg bg-transparent border-b-2 border-gray-300 focus:border-blue-500 peer transition">
+                        <label for="username" class="absolute right-0 top-4 text-base text-gray-500 transition transform origin-top-right">
+                            <i class="fa-solid fa-id-card mr-2"></i> اسم المستخدم
+                        </label>
+                    </div>
+
+                    <!-- Email -->
+                    <div class="relative group">
+                        <input id="email" name="email" type="email" required placeholder=" " 
+                               class="block w-full px-4 pt-6 pb-2 text-lg bg-transparent border-b-2 border-gray-300 focus:border-blue-500 peer transition">
+                        <label for="email" class="absolute right-0 top-4 text-base text-gray-500 transition transform origin-top-right">
+                            <i class="fa-solid fa-envelope mr-2"></i> البريد الإلكتروني
                         </label>
                     </div>
 
                     <!-- Password -->
                     <div class="relative group">
-                        <input id="password" name="password" type="password" required placeholder=" " autocomplete="current-password"
-                               class="block w-full px-4 pt-6 pb-2 text-lg appearance-none bg-transparent border-b-2 border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-0 focus:border-blue-500 peer dark:text-white transition-all duration-300">
-                        <label for="password" class="absolute right-0 top-4 text-base text-gray-500 dark:text-gray-400 duration-300 transform -translate-y-4 scale-75 origin-top-right peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0 peer-focus:scale-75 peer-focus:-translate-y-4 peer-focus:text-blue-600 dark:peer-focus:text-blue-400">
+                        <input id="password" name="password" type="password" required placeholder=" " 
+                               class="block w-full px-4 pt-6 pb-2 text-lg bg-transparent border-b-2 border-gray-300 focus:border-blue-500 peer transition">
+                        <label for="password" class="absolute right-0 top-4 text-base text-gray-500 transition transform origin-top-right">
                             <i class="fa-solid fa-key mr-2"></i> كلمة المرور
                         </label>
                     </div>
 
-                    <!-- Submit Button -->
+                    <!-- Confirm Password -->
+                    <div class="relative group">
+                        <input id="password2" name="password2" type="password" required placeholder=" " 
+                               class="block w-full px-4 pt-6 pb-2 text-lg bg-transparent border-b-2 border-gray-300 focus:border-blue-500 peer transition">
+                        <label for="password2" class="absolute right-0 top-4 text-base text-gray-500 transition transform origin-top-right">
+                            <i class="fa-solid fa-lock mr-2"></i> تأكيد كلمة المرور
+                        </label>
+                    </div>
+
+                    <!-- Submit -->
                     <div class="pt-6">
-                        <button type="submit" id="login-button"
-                                class="w-full flex justify-center items-center py-4 px-4 border border-transparent rounded-full shadow-lg text-xl font-bold text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-500/50 transition duration-300 ease-in-out transform hover:shadow-2xl hover:shadow-blue-500/50 active:scale-95 disabled:bg-blue-400 disabled:cursor-not-allowed">
-                            <span id="button-text">تسجيل الدخول</span>
-                            <svg id="loading-spinner" class="animate-spin -ml-1 mr-3 h-6 w-6 text-white hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        <button type="submit" id="register-button"
+                                class="w-full py-4 rounded-full bg-blue-600 hover:bg-blue-700 text-xl font-bold text-white transition shadow-lg">
+                            <span id="button-text">إنشاء الحساب</span>
+                            <svg id="loading-spinner" class="animate-spin -ml-1 mr-3 h-6 w-6 text-white hidden"
+                                 xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke-width="4"/>
+                                <path class="opacity-75" d="M4 12a8 8 0 018-8V0C5..." />
                             </svg>
                         </button>
                     </div>
                 </form>
 
-                <p class="mt-12 text-center text-md text-gray-600 dark:text-gray-400 pt-6 border-t border-gray-200 dark:border-gray-700">
-                    لا تملك حساب؟ 
-                    <a href="{% url 'register' %}" class="font-extrabold text-blue-500 hover:text-blue-400 transition duration-150 mr-1">
-                        إنشاء حساب
-                    </a>
+                <p class="mt-12 text-center text-md text-gray-600 dark:text-gray-400 pt-6 border-t">
+                    لديك حساب بالفعل؟
+                    <a href="{% url 'login' %}" class="font-extrabold text-blue-500 hover:text-blue-400 mr-1">تسجيل الدخول</a>
                 </p>
             </div>
         </div>
 
-        <!-- Left Panel -->
-        <div class="hidden lg:flex relative lg:w-2/5 flex-col justify-center p-12 overflow-hidden bg-blue-900 text-white archive-3d-panel">
-            <div class="absolute inset-0 z-0 archive-3d-flow"></div>
-            <div class="absolute inset-0 z-0 archive-extra-flow"></div>
+        <!-- Left Panel (Design) -->
+        <div class="hidden lg:flex relative lg:w-2/5 flex-col justify-center p-12 bg-blue-900 text-white archive-3d-panel">
+            <div class="absolute inset-0 archive-3d-flow"></div>
 
-            <div class="relative z-10 text-center space-y-8">
-                <div class="text-8xl font-black tracking-widest text-white transform hover:scale-105 transition-transform duration-500">
+            <div class="relative text-center space-y-8 z-10">
+                <div class="text-8xl font-black">
                     <span class="text-blue-400">D</span>OC
                 </div>
-                <h2 class="text-3xl font-bold leading-snug text-blue-200">بوابتك للتحول الرقمي الآمن</h2>
-                <p class="text-lg opacity-90 mt-4 max-w-sm mx-auto font-light border-t border-white/30 pt-4">
-                    نظام الأرشفة الذكي لإدارة وحفظ مستنداتك بكفاءة وخصوصية عالية.
+                <h2 class="text-3xl font-bold">ابدأ رحلتك الرقمية معنا</h2>
+                <p class="text-lg opacity-90 max-w-sm mx-auto pt-4">
+                    سجل الآن وابدأ إدارة مستنداتك بسهولة وأمان.
                 </p>
-                <div class="mt-8">
-                    <i class="fa-solid fa-cloud-arrow-up text-6xl text-blue-400 animate-pulse-slow"></i>
-                </div>
             </div>
         </div>
+
     </div>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/js/toastr.min.js"></script>
+
 <script>
 $(document).ready(function() {
-    $('#login-form').on('submit', function(e) {
+    $('#register-form').on('submit', function(e) {
         e.preventDefault();
-        var $btn = $('#login-button');
+        var $btn = $('#register-button');
         var $text = $('#button-text');
         var $spinner = $('#loading-spinner');
+
         $btn.prop('disabled', true);
-        $text.text('جاري المعالجة...');
+        $text.text('جاري إنشاء الحساب...');
         $spinner.removeClass('hidden');
 
         $.ajax({
-            url: "{% url 'login' %}",
+            url: "{% url 'register' %}",
             method: "POST",
             data: $(this).serialize(),
             success: function(data) {
                 if (data.success) {
                     toastr.success(data.message);
-                    setTimeout(function() {
-                        window.location.href = data.redirect_url || "/dashboard/";
-                    }, 1000);
+                    setTimeout(() => window.location.href = data.redirect_url || "/login/", 1000);
                 } else {
                     toastr.error(data.message);
                 }
             },
             error: function(xhr) {
-                toastr.error(xhr.responseJSON?.message || "حدث خطأ ما.");
+                toastr.error(xhr.responseJSON?.message || "حدث خطأ غير متوقع.");
             },
             complete: function() {
                 $btn.prop('disabled', false);
-                $text.text('تسجيل الدخول');
+                $text.text('إنشاء الحساب');
                 $spinner.addClass('hidden');
             }
         });
     });
 });
 </script>
+
 </body>
 </html>
