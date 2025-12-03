@@ -50,7 +50,7 @@ function uploadFile(file){
     const formData = new FormData();
     formData.append('file', file);
 
-    fetch("/processing/uploads/create/", {
+    fetch("/uploads/create/", {
 
         method: 'POST',
         body: formData,
