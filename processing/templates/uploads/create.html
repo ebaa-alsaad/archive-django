@@ -62,7 +62,7 @@
 
 <script>
 /* ــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــ
-               نسخة MULTI FILE كاملة تعمل مع Django
+               MULTI FILE + Progress Bar لكل ملف
  ــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــ */
 
 const fileInput = document.getElementById("file-input");
@@ -74,6 +74,8 @@ const errorContainer = document.getElementById("error-container");
 
 let selectedFiles = [];
 
+/* ------------------------ عرض الملفات + بروجريس ------------------------ */
+
 function renderFileList() {
     fileList.innerHTML = "";
     fileList.classList.toggle("hidden", selectedFiles.length === 0);
@@ -81,42 +83,58 @@ function renderFileList() {
     selectedFiles.forEach((file, index) => {
         const li = document.createElement("li");
         li.className =
-            "flex justify-between items-center bg-white border border-gray-200 rounded-xl p-3 shadow-sm";
+            "bg-white border border-gray-200 rounded-xl p-3 shadow-sm space-y-2";
 
         li.innerHTML = `
-            <div>
-                <p class="font-semibold text-gray-800">${file.name}</p>
-                <p class="text-sm text-gray-500">${(file.size / 1024 / 1024).toFixed(2)} MB</p>
+            <div class="flex justify-between items-center">
+                <div>
+                    <p class="font-semibold text-gray-800">${file.name}</p>
+                    <p class="text-sm text-gray-500">${(file.size / 1024 / 1024).toFixed(2)} MB</p>
+                </div>
+                <button class="text-red-600 hover:text-red-800" onclick="removeFile(${index})">
+                    <i class="fa-solid fa-trash"></i>
+                </button>
             </div>
-            <button class="text-red-600 hover:text-red-800" onclick="removeFile(${index})">
-                <i class="fa-solid fa-trash"></i>
-            </button>
+
+            <!-- progress bar -->
+            <div class="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+                <div id="progress-${index}"
+                    class="bg-blue-600 h-3 w-0 transition-all duration-200"></div>
+            </div>
+
+            <p id="progress-text-${index}" class="text-xs text-gray-500 text-right">0%</p>
         `;
 
         fileList.appendChild(li);
     });
 }
 
+/* ------------------------ حذف ملف ------------------------ */
 function removeFile(index) {
     selectedFiles.splice(index, 1);
     renderFileList();
     startBtn.disabled = selectedFiles.length === 0;
 }
 
+/* ------------------------ إضافة ملفات ------------------------ */
 fileInput.addEventListener("change", () => {
     selectedFiles = [...selectedFiles, ...fileInput.files];
     renderFileList();
     startBtn.disabled = selectedFiles.length === 0;
 });
 
+/* ------------------------ Drag & Drop ------------------------ */
 dropZone.addEventListener("click", () => fileInput.click());
+
 dropZone.addEventListener("dragover", (e) => {
     e.preventDefault();
     dropZone.classList.add("bg-blue-50", "border-blue-500");
 });
+
 dropZone.addEventListener("dragleave", () => {
     dropZone.classList.remove("bg-blue-50", "border-blue-500");
 });
+
 dropZone.addEventListener("drop", (e) => {
     e.preventDefault();
     dropZone.classList.remove("bg-blue-50", "border-blue-500");
@@ -126,33 +144,58 @@ dropZone.addEventListener("drop", (e) => {
     startBtn.disabled = selectedFiles.length === 0;
 });
 
+/* ------------------------ رفع الملفات مع Progress فعلي ------------------------ */
+
 document.getElementById("upload-form").addEventListener("submit", async function (e) {
     e.preventDefault();
-
-    const formData = new FormData();
-
-    selectedFiles.forEach((file) => formData.append("file", file));
 
     startBtn.disabled = true;
     startBtn.innerHTML = "جاري الرفع...";
 
-    const response = await fetch("{% url 'processing:upload_create' %}", {
-        method: "POST",
-        body: formData,
-        headers: { "X-CSRFToken": "{{ csrf_token }}" }
-    });
+    let uploadsCount = 0;
 
-    const data = await response.json();
+    // نرفع كل ملف بشكل مستقل ليظهر progress لكل ملف
+    for (let i = 0; i < selectedFiles.length; i++) {
 
-    if (!data.success) {
-        document.getElementById("error-message").textContent = data.message;
-        errorContainer.classList.remove("hidden");
-        return;
+        const formData = new FormData();
+        formData.append("file", selectedFiles[i]);
+
+        await new Promise((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+            xhr.open("POST", "{% url 'processing:upload_create' %}");
+
+            xhr.setRequestHeader("X-CSRFToken", "{{ csrf_token }}");
+
+            /* --- progress event --- */
+            xhr.upload.onprogress = function (e) {
+                if (e.lengthComputable) {
+                    const percent = Math.round((e.loaded / e.total) * 100);
+                    document.getElementById(`progress-${i}`).style.width = percent + "%";
+                    document.getElementById(`progress-text-${i}`).textContent = percent + "%";
+                }
+            };
+
+            xhr.onload = () => {
+                if (xhr.status === 200) {
+                    uploadsCount++;
+                    resolve();
+                } else {
+                    reject("Upload failed");
+                }
+            };
+
+            xhr.onerror = () => reject("Network Error");
+
+            xhr.send(formData);
+        });
+
     }
+
+    /* ------------------------ بعد انتهاء جميع الرفع ------------------------ */
 
     resultsContainer.classList.remove("hidden");
     document.getElementById("results-message").textContent =
-        `تم رفع ${data.uploads.length} ملف بنجاح`;
+        `تم رفع ${uploadsCount} ملف بنجاح`;
 
     startBtn.disabled = false;
     startBtn.innerHTML = "بدء رفع الملفات";
