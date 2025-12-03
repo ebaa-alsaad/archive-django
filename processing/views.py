@@ -51,6 +51,9 @@ def upload_create(request):
 
         return JsonResponse({'success': True, 'uploads': [{'id': u.id, 'name': u.original_filename} for u in uploads]})
 
+    # إذا كان GET، اعرض صفحة رفع الملفات
+    return render(request, 'uploads/create.html')
+
 
 @login_required
 def check_status(request, upload_id):
