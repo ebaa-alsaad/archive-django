@@ -52,23 +52,17 @@ def upload_create(request):
         return JsonResponse({'success': True, 'uploads': [{'id': u.id, 'name': u.original_filename} for u in uploads]})
 
     return render(request, 'uploads/create.html')
- 
+
 
 @login_required
 def check_status(request, upload_id):
     upload = get_object_or_404(Upload, id=upload_id, user=request.user)
     progress_data = cache.get(f"upload_{upload_id}_progress") or {
         'progress': upload.progress,
-        'message': upload.message or '',
-        'status': upload.status
-    }
-    return JsonResponse({
-        'success': True,
-        'status': upload.status,
-        'progress': progress_data['progress'],
-        'message': progress_data['message'],
+        'groups': [{'pages_count': g.pages_count} for g in upload.groups.all()],
         'groups_count': upload.groups.count()
-    })
+    }
+    return JsonResponse({'success': True, **progress_data})
 
 
 @login_required
