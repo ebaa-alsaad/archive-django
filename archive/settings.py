@@ -6,6 +6,8 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-e+z!5@a)ur#&klw*=e_rv^nd_56xquwln0hjm(gx34@fb%h=6'
 DEBUG = True
 ALLOWED_HOSTS = ['archivedoc.citytecapp.com', '127.0.0.1', 'localhost']
+CORS_ALLOW_ALL_ORIGINS = DEBUG 
+CORS_ALLOW_CREDENTIALS = True
 
 INSTALLED_APPS = [
     'django.contrib.admin',

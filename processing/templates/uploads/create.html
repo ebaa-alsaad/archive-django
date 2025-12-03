@@ -25,7 +25,7 @@ function uploadFiles(){
     for(let i=0;i<files.length;i++){
         uploadFile(files[i]);
     }
-}
+} 
 
 function uploadFile(file){
     const container = document.createElement('div');
@@ -50,47 +50,75 @@ function uploadFile(file){
     const formData = new FormData();
     formData.append('file', file);
 
-    fetch("{% url 'processing:upload_create' %}", {
+    // استخدم URL المطلق بدلاً من template tag
+    const uploadUrl = '/uploads/create/'; // أو window.location.origin + '/uploads/create/'
+    
+    fetch(uploadUrl, {
         method: 'POST',
         body: formData,
-        headers: { 'X-CSRFToken': csrftoken }
+        headers: { 
+            'X-CSRFToken': csrftoken,
+            // أضف Accept header للـ JSON
+            'Accept': 'application/json'
+        }
     })
-    .then(res => res.json().catch(() => { 
-        throw new Error('الرد ليس JSON، تحقق من السيرفر'); 
-    }))
+    .then(response => {
+        // تحقق من حالة الاستجابة أولاً
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return response.json();
+    })
     .then(data => {
-        if(!data.success){
+        if(data.success){
+            const upload_id = data.uploads[0].id;
+            statusText.textContent = 'جاري المعالجة...';
+            
+            // استخدم URL صحيح للـ status
+            const statusUrl = `/uploads/${upload_id}/status/`;
+            
+            const interval = setInterval(() => {
+                fetch(statusUrl)
+                .then(r => {
+                    if (!r.ok) throw new Error(`Status check failed: ${r.status}`);
+                    return r.json();
+                })
+                .then(p => {
+                    if(p.success){
+                        bar.style.width = p.progress + '%';
+                        bar.textContent = Math.round(p.progress) + '%';
+                        statusText.textContent = p.status;
+                        
+                        if(p.progress >= 100 || p.status === 'failed' || p.status === 'completed') {
+                            clearInterval(interval);
+                        }
+                        
+                        if(p.status === 'failed'){
+                            bar.style.background = 'red';
+                            statusText.textContent = 'فشل في المعالجة: ' + p.message;
+                        }
+                    } else {
+                        statusText.textContent = 'خطأ في الحالة: ' + (p.message || 'غير معروف');
+                        clearInterval(interval);
+                    }
+                })
+                .catch(err => {
+                    console.error('Status check error:', err);
+                    clearInterval(interval);
+                });
+            }, 1000);
+        } else {
             statusText.textContent = data.message || 'خطأ غير معروف';
             bar.style.background = 'red';
-            return;
         }
-
-        const upload_id = data.uploads[0].id;
-        statusText.textContent = 'جاري المعالجة...';
-
-        const interval = setInterval(() => {
-            fetch(`/uploads/${upload_id}/status/`)
-            .then(r => r.json())
-            .then(p => {
-                bar.style.width = p.progress+'%';
-                bar.textContent = Math.round(p.progress)+'%';
-
-                statusText.textContent = p.status;
-                if(p.progress >= 100 || p.status === 'failed') clearInterval(interval);
-
-                if(p.status === 'failed'){
-                    bar.style.background = 'red';
-                    statusText.textContent = 'فشل في المعالجة: ' + p.message;
-                }
-            });
-        }, 500);
     })
     .catch(err => {
-        console.error(err);
+        console.error('Upload error:', err);
         statusText.textContent = 'خطأ في رفع الملف: ' + err.message;
         bar.style.background = 'red';
     });
 }
+
 </script>
 
 <style>

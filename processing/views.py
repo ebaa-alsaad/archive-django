@@ -97,20 +97,35 @@ def upload_create(request):
 
 @login_required
 def check_status(request, upload_id):
-    upload = get_object_or_404(Upload, id=upload_id, user=request.user)
-    progress_data = cache.get(f"upload_{upload_id}_progress") or {
-        'progress': upload.progress,
-        'message': upload.message or '',
-        'status': upload.status
-    }
-    return JsonResponse({
-        'success': True,
-        'status': upload.status,
-        'progress': progress_data['progress'],
-        'message': progress_data['message'],
-        'groups_count': upload.groups.count()
-    })
-
+    try:
+        upload = get_object_or_404(Upload, id=upload_id, user=request.user)
+        
+        # استخدم cache أو البيانات المباشرة
+        cache_key = f"upload_progress:{upload_id}"
+        progress_data = cache.get(cache_key)
+        
+        if progress_data:
+            progress = progress_data.get('progress', upload.progress)
+            message = progress_data.get('message', upload.message or '')
+            status = progress_data.get('status', upload.status)
+        else:
+            progress = upload.progress
+            message = upload.message or ''
+            status = upload.status
+        
+        return JsonResponse({
+            'success': True,
+            'status': status,
+            'progress': progress,
+            'message': message,
+            'groups_count': upload.groups.count()
+        })
+    except Exception as e:
+        logger.exception(f"Error in check_status: {e}")
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
 
 @login_required
 def upload_detail(request, upload_id):
