@@ -154,48 +154,45 @@ document.getElementById("upload-form").addEventListener("submit", async function
 
     let uploadsCount = 0;
 
-    // نرفع كل ملف بشكل مستقل ليظهر progress لكل ملف
-    for (let i = 0; i < selectedFiles.length; i++) {
+    let zip_links = [];
 
+    for (let i = 0; i < selectedFiles.length; i++) {
         const formData = new FormData();
         formData.append("file", selectedFiles[i]);
 
         await new Promise((resolve, reject) => {
             const xhr = new XMLHttpRequest();
             xhr.open("POST", "{% url 'processing:upload_create' %}");
-
             xhr.setRequestHeader("X-CSRFToken", "{{ csrf_token }}");
-
-            /* --- progress event --- */
-            xhr.upload.onprogress = function (e) {
-                if (e.lengthComputable) {
-                    const percent = Math.round((e.loaded / e.total) * 100);
-                    document.getElementById(`progress-${i}`).style.width = percent + "%";
-                    document.getElementById(`progress-text-${i}`).textContent = percent + "%";
-                }
-            };
 
             xhr.onload = () => {
                 if (xhr.status === 200) {
-                    uploadsCount++;
+                    const data = JSON.parse(xhr.responseText);
+                    uploadsCount += data.uploads.length;
+                    if(data.zip_files){
+                        zip_links = zip_links.concat(data.zip_files);
+                    }
                     resolve();
-                } else {
-                    reject("Upload failed");
-                }
+                } else reject("Upload failed");
             };
-
             xhr.onerror = () => reject("Network Error");
-
             xhr.send(formData);
         });
-
     }
-
-    /* ------------------------ بعد انتهاء جميع الرفع ------------------------ */
 
     resultsContainer.classList.remove("hidden");
     document.getElementById("results-message").textContent =
         `تم رفع ${uploadsCount} ملف بنجاح`;
+
+    // إضافة أزرار تحميل ZIP لكل upload
+    zip_links.forEach(z => {
+        const link = document.createElement('a');
+        link.href = z.zip_url;
+        link.download = `groups_${z.upload_id}.zip`;
+        link.textContent = `تحميل مجموعات الملف ${z.upload_id}`;
+        link.className = "block text-blue-700 font-bold mt-2";
+        resultsContainer.appendChild(link);
+    });
 
     startBtn.disabled = false;
     startBtn.innerHTML = "بدء رفع الملفات";
@@ -203,6 +200,7 @@ document.getElementById("upload-form").addEventListener("submit", async function
     selectedFiles = [];
     renderFileList();
 });
+ 
 </script>
 
 {% endblock %}

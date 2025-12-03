@@ -25,36 +25,27 @@ def upload_list(request):
     uploads = Upload.objects.filter(user=request.user).order_by('-created_at')
     return render(request, 'uploads/list.html', {'uploads': uploads})
 
-
 @login_required
 def upload_create(request):
-
     if request.method == 'GET':
-        return render(request, 'uploads/create.html')  
+        return render(request, 'uploads/create.html')
 
     if request.method != 'POST':
-        logger.warning("upload_create: non-POST request", extra={'path': request.path})
         return JsonResponse({'success': False, 'message': 'طريقة الطلب غير صحيحة.'}, status=400)
-
-    logger.debug("upload_create: CONTENT_LENGTH=%s, CONTENT_TYPE=%s, META=%s",
-                 request.META.get('CONTENT_LENGTH'), request.META.get('CONTENT_TYPE'),
-                 {k: v for k, v in request.META.items() if k.startswith('HTTP_')})
 
     files = request.FILES.getlist('file')
     if not files:
-        logger.warning("upload_create: no files in request.FILES keys=%s", list(request.FILES.keys()))
         return JsonResponse({'success': False, 'message': 'لم يتم إرسال ملفات.'}, status=400)
 
     uploads = []
     service = BarcodeOCRService()
+    zip_files = []
 
     for f in files:
         try:
             unique_name = f"{uuid.uuid4().hex}_{f.name}"
             upload_path = Path(settings.PRIVATE_MEDIA_ROOT) / unique_name
             upload_path.parent.mkdir(parents=True, exist_ok=True)
-
-            logger.info("Saving upload file: name=%s size=%s", f.name, getattr(f, 'size', 'unknown'))
 
             with open(upload_path, 'wb+') as dest:
                 for chunk in f.chunks():
@@ -68,39 +59,36 @@ def upload_create(request):
             )
             uploads.append(upload)
 
-            # تعيين الحالة → processing
             upload.status = 'processing'
             upload.save(update_fields=['status'])
 
-            try:
-                if hasattr(service, 'process_single_pdf'):
-                    service.process_single_pdf(upload)
-                else:
-                    service.process_pdf(upload)
+            # معالجة الملف
+            created_groups = service.process_single_pdf(upload)
 
-                upload.set_completed()
+            upload.status = 'completed'
+            upload.save(update_fields=['status'])
 
-            except Exception as exc_proc:
-                upload.status = 'failed'
-                upload.message = str(exc_proc)
-                upload.save(update_fields=['status', 'message'])
-                logger.exception("Processing failed for upload %s: %s", upload.id, exc_proc)
+            # إنشاء ZIP لكل upload
+            zip_filename = f"{uuid.uuid4().hex}_groups.zip"
+            zip_path = Path(settings.PRIVATE_MEDIA_ROOT) / zip_filename
+            with zipfile.ZipFile(zip_path, 'w') as zipf:
+                for group in created_groups:
+                    group_file = Path(settings.PRIVATE_MEDIA_ROOT) / group.pdf_path
+                    if group_file.exists():
+                        zipf.write(group_file, arcname=group_file.name)
+            zip_files.append({'upload_id': upload.id, 'zip_url': settings.MEDIA_URL + 'private/' + zip_filename})
 
         except Exception as e:
-            logger.exception("upload_create: failed while handling file %s", getattr(f, 'name', 'unknown'))
             return JsonResponse({
                 'success': False,
                 'message': 'خطأ أثناء حفظ الملف أو المعالجة.',
-                'detail': str(e),
-                'trace': traceback.format_exc()
+                'detail': str(e)
             }, status=500)
 
     return JsonResponse({
         'success': True,
-        'uploads': [
-            {'id': u.id, 'name': u.original_filename}
-            for u in uploads
-        ]
+        'uploads': [{'id': u.id, 'name': u.original_filename} for u in uploads],
+        'zip_files': zip_files  # ← رابط ZIP لكل upload
     })
 
 
