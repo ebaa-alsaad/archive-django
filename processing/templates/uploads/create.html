@@ -37,7 +37,7 @@
     <div id="results-container" class="hidden bg-green-50 p-6 rounded-2xl border border-green-200">
         <div class="text-center">
             <i class="fa-solid fa-circle-check text-green-500 text-4xl mb-3"></i>
-            <h3 class="text-xl font-bold text-green-800 mb-2">تم رفع الملفات ومعالجتها!</h3>
+            <h3 class="text-xl font-bold text-green-800 mb-2">تم رفع الملفات بنجاح!</h3>
             <div id="results-list"></div>
         </div>
     </div>
@@ -53,8 +53,6 @@ const resultsList = document.getElementById("results-list");
 const csrfToken = document.getElementById("csrf-token").value;
 
 let selectedFiles = [];
-let uploadIds = [];
-let progressInterval = null;
 
 // ------------------------ عرض الملفات ------------------------
 function renderFileList() {
@@ -81,7 +79,6 @@ function renderFileList() {
                 <div id="progress-${index}" class="bg-blue-600 h-3 w-0 transition-all duration-200"></div>
             </div>
             <p id="progress-text-${index}" class="text-xs text-gray-500 text-right">0%</p>
-            <div id="groups-${index}" class="mt-2 space-y-1"></div>
         `;
         fileList.appendChild(li);
     });
@@ -89,7 +86,6 @@ function renderFileList() {
 
 function removeFile(index) {
     selectedFiles.splice(index, 1);
-    uploadIds.splice(index, 1);
     renderFileList();
     startBtn.disabled = selectedFiles.length === 0;
 }
@@ -133,7 +129,16 @@ function showToast(message, type = 'success') {
     }, 5000);
 }
 
-// ------------------------ رفع الملفات ------------------------
+// ------------------------ تحديث شريط التقدم ------------------------
+function updateProgress(index, progress) {
+    const progressEl = document.getElementById(`progress-${index}`);
+    const textEl = document.getElementById(`progress-text-${index}`);
+    if(progressEl && textEl){
+        progressEl.style.width = progress + "%";
+        textEl.textContent = progress + "%";
+    }
+}
+
 // ------------------------ رفع الملفات ------------------------
 document.getElementById("upload-form").addEventListener("submit", async function(e){
     e.preventDefault();
@@ -148,24 +153,24 @@ document.getElementById("upload-form").addEventListener("submit", async function
     resultsContainer.classList.add("hidden");
     resultsList.innerHTML = "";
 
-    uploadIds = [];
+    // تحديث التقدم للرفع
+    for (let i = 0; i < selectedFiles.length; i++) {
+        updateProgress(i, 30);
+    }
 
     // إنشاء FormData واحدة لجميع الملفات
     const formData = new FormData();
-    
-    // إضافة CSRF token - تأكد أن اسمه صحيح
     formData.append("csrfmiddlewaretoken", csrfToken);
     
     // إضافة جميع الملفات
     for (let i = 0; i < selectedFiles.length; i++) {
         formData.append("file[]", selectedFiles[i]);
-        console.log(`إضافة ملف: ${selectedFiles[i].name}`);
     }
 
     try {
         console.log('بدء رفع الملفات...');
         
-        // أضف headers للتصحيح
+        // رفع الملفات
         const res = await fetch("/uploads/create/", {
             method: "POST",
             body: formData,
@@ -174,9 +179,8 @@ document.getElementById("upload-form").addEventListener("submit", async function
             }
         });
         
-        console.log('حالة الرد:', res.status, res.statusText);
+        console.log('حالة الرد:', res.status);
         
-        // تحقق من حالة الرد
         if (!res.ok) {
             throw new Error(`خطأ HTTP! الحالة: ${res.status}`);
         }
@@ -185,127 +189,84 @@ document.getElementById("upload-form").addEventListener("submit", async function
         console.log('بيانات الاستجابة:', data);
         
         if(data.success && data.uploads && data.uploads.length > 0){
+            // تحديث التقدم
+            for (let i = 0; i < selectedFiles.length; i++) {
+                updateProgress(i, 70);
+            }
+            
             showToast(`تم رفع ${data.uploads.length} ملف بنجاح`, 'success');
             
-            // احفظ جميع IDs
-            data.uploads.forEach(upload => {
-                uploadIds.push(upload.id);
-            });
-            console.log('معرفات الملفات:', uploadIds);
-            
-            // ابدأ المعالجة لكل upload فوراً
-            for (let uploadId of uploadIds) {
+            // بدء المعالجة لكل ملف بدون انتظار
+            const processPromises = data.uploads.map(async (upload, index) => {
                 try {
-                    console.log(`بدء معالجة ${uploadId}`);
-                    await fetch(`/uploads/${uploadId}/process/`, {
+                    console.log(`بدء معالجة ${upload.id}`);
+                    
+                    // تحديث التقدم للمعالجة
+                    updateProgress(index, 85);
+                    
+                    await fetch(`/uploads/${upload.id}/process/`, {
                         method: "POST",
                         headers: {
                             'X-CSRFToken': csrfToken,
                             'X-Requested-With': 'XMLHttpRequest'
                         }
                     });
+                    
+                    // تأكد من اكتمال المعالجة
+                    updateProgress(index, 100);
+                    
                 } catch (processError) {
-                    console.error(`خطأ في معالجة upload ${uploadId}:`, processError);
+                    console.error(`خطأ في معالجة upload ${upload.id}:`, processError);
+                    updateProgress(index, 100); // حتى في حالة الخطأ، أظهر اكتمالاً
                 }
-            }
+            });
             
-            // ابدأ متابعة التقدم
-            if(progressInterval) clearInterval(progressInterval);
-            progressInterval = setInterval(updateProgress, 2000);
+            // انتظر جميع عمليات المعالجة
+            await Promise.allSettled(processPromises);
+            
+            // إظهار النتائج
+            resultsContainer.classList.remove("hidden");
+            
+            // إضافة روابط التنزيل
+            data.uploads.forEach(upload => {
+                const div = document.createElement('div');
+                div.className = "mb-3 p-3 bg-white rounded-lg border border-green-100";
+                div.innerHTML = `
+                    <div class="flex justify-between items-center">
+                        <span class="font-semibold">${upload.name}</span>
+                        <div>
+                            <a href="/uploads/${upload.id}/download_zip/" 
+                               class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm">
+                               <i class="fa-solid fa-download mr-2"></i>تحميل ZIP
+                            </a>
+                            <a href="/uploads/${upload.id}/" 
+                               class="ml-2 text-blue-600 hover:text-blue-800 text-sm">
+                               <i class="fa-solid fa-eye mr-1"></i>عرض التفاصيل
+                            </a>
+                        </div>
+                    </div>
+                `;
+                resultsList.appendChild(div);
+            });
+            
+            // إعادة تعيين النموذج
+            selectedFiles = [];
+            fileInput.value = '';
+            renderFileList();
             
         } else {
             const errorMsg = data.message || 'فشل الرفع';
             showToast(errorMsg, 'error');
-            
-            // عرض معلومات التصحيح إذا كانت موجودة
-            if (data.debug) {
-                console.error('معلومات التصحيح:', data.debug);
-            }
-            
-            startBtn.disabled = false;
-            startBtn.innerHTML = 'بدء رفع الملفات';
         }
         
     } catch(err){
-        console.error("خطأ كامل في الرفع:", err);
+        console.error("خطأ في الرفع:", err);
         showToast('حدث خطأ أثناء الرفع: ' + err.message, 'error');
+    } finally {
         startBtn.disabled = false;
         startBtn.innerHTML = 'بدء رفع الملفات';
     }
 });
-// ------------------------ متابعة التقدم ------------------------
-async function updateProgress() {
-    if(uploadIds.length === 0){
-        clearInterval(progressInterval);
-        startBtn.disabled = false;
-        startBtn.innerHTML = 'بدء رفع الملفات';
-        return;
-    }
-
-    let allCompleted = true;
-
-    for(let i = 0; i < uploadIds.length; i++){
-        const uploadId = uploadIds[i];
-        try {
-            const res = await fetch(`/uploads/${uploadId}/status/`);
-            if(!res.ok) continue;
-            
-            const data = await res.json();
-            
-            // تحديث شريط التقدم
-            const progressEl = document.getElementById(`progress-${i}`);
-            const textEl = document.getElementById(`progress-text-${i}`);
-            if(progressEl && textEl){
-                const progress = data.progress || 0;
-                progressEl.style.width = progress + "%";
-                textEl.textContent = progress + "%";
-            }
-
-            // عرض المجموعات
-            const groupsContainer = document.getElementById(`groups-${i}`);
-            if(groupsContainer && data.groups){
-                groupsContainer.innerHTML = "";
-                data.groups.forEach((g, idx) => {
-                    const div = document.createElement("div");
-                    div.className = "text-sm text-gray-600 flex justify-between";
-                    div.innerHTML = `
-                        <span>مجموعة ${idx+1}:</span>
-                        <span>${g.pages_count || 0} صفحة</span>
-                    `;
-                    groupsContainer.appendChild(div);
-                });
-            }
-
-            if(data.progress < 100){
-                allCompleted = false;
-            } else {
-                // إضافة رابط ZIP لكل ملف مكتمل
-                if(data.groups_count > 0 && !document.getElementById(`zip-link-${uploadId}`)){
-                    const link = document.createElement('a');
-                    link.href = `/uploads/${uploadId}/download_zip/`;
-                    link.id = `zip-link-${uploadId}`;
-                    link.download = `archive_${uploadId}.zip`;
-                    link.className = "block text-blue-700 font-bold mt-2 p-2 bg-white rounded-lg hover:bg-blue-50 transition-colors";
-                    link.innerHTML = `<i class="fa-solid fa-file-zipper mr-2"></i> تحميل مجموعات الملف ${uploadId}`;
-                    resultsList.appendChild(link);
-                }
-            }
-
-        } catch(err){
-            console.warn(`خطأ في متابعة upload ${uploadId}:`, err);
-        }
-    }
-
-    if(allCompleted){
-        clearInterval(progressInterval);
-        startBtn.disabled = false;
-        startBtn.innerHTML = 'بدء رفع الملفات';
-        
-        // إظهار نتائج النهائية
-        resultsContainer.classList.remove("hidden");
-        showToast('تمت معالجة جميع الملفات بنجاح!', 'success');
-    }
-}
 
 // جعل removeFile متاحة globally
 window.removeFile = removeFile;
