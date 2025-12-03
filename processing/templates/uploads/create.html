@@ -6,7 +6,19 @@
 <div id="uploads"></div>
 
 <script>
-const csrftoken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+function getCsrfToken() {
+    const meta = document.querySelector('meta[name="csrf-token"]');
+    if (meta && meta.getAttribute('content')) return meta.getAttribute('content');
+
+    // fallback to cookie
+    function getCookie(name) {
+        const v = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)');
+        return v ? decodeURIComponent(v.pop()) : null;
+    }
+    return getCookie('csrftoken');
+}
+
+const csrftoken = getCsrfToken();
 
 function uploadFiles(){
     const files = document.getElementById('file-input').files;
