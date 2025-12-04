@@ -48,80 +48,79 @@ class BarcodeOCRService:
         return None
 
     def process_single_pdf(self, upload):
-    """معالجة PDF واحدة - مطورة بناءً على كود Laravel"""
-    self.current_upload = upload
-    upload_id = upload.id
-    start_time = time.time()
-    logger.info(f"🚀 بدء معالجة فائقة السرعة لـ upload {upload_id}")
-    
-    try:
-        pdf_path = Path(settings.PRIVATE_MEDIA_ROOT) / upload.stored_filename
-        if not pdf_path.exists():
-            raise FileNotFoundError(f"PDF file not found: {pdf_path}")
+        self.current_upload = upload
+        upload_id = upload.id
+        start_time = time.time()
+        logger.info(f"🚀 بدء معالجة فائقة السرعة لـ upload {upload_id}")
+        
+        try:
+            pdf_path = Path(settings.PRIVATE_MEDIA_ROOT) / upload.stored_filename
+            if not pdf_path.exists():
+                raise FileNotFoundError(f"PDF file not found: {pdf_path}")
 
-        # الحالة: بدء المعالجة
-        with self._lock:
-            upload.status = 'processing'
-            upload.progress = 5
-            upload.message = 'جاري تهيئة الملف...'
-            upload.save(update_fields=['status', 'progress', 'message'])
-        
-        # ===== الخطوة 1: فتح PDF وتحليل =====
-        logger.info(f"📖 فتح الملف: {pdf_path}")
-        doc = fitz.open(pdf_path)
-        total_pages = doc.page_count
-        
-        logger.info(f"📄 عدد الصفحات: {total_pages}")
-        
-        self._update_upload_progress(upload, 25, f'تم تحميل {total_pages} صفحة')
-        
-        # ===== الخطوة 2: اكتشاف الباركود الفاصل =====
-        separator_barcode = self._find_separator_barcode_fast(doc, total_pages)
-        logger.info(f"🔍 باركود الفصل: {separator_barcode}")
-        
-        self._update_upload_progress(upload, 30, f'تم تحديد الباركود الفاصل')
-        
-        # ===== الخطوة 3: تقسيم الصفحات =====
-        self._update_upload_progress(upload, 35, 'جاري تقسيم الصفحات إلى أقسام...')
-        sections = self._split_pages_fast(doc, separator_barcode, total_pages)
-        
-        if not sections:
-            raise Exception("لم يتم العثور على أقسام - ربما الباركود الفاصل غير صحيح")
-        
-        logger.info(f"📊 عدد الأقسام: {len(sections)}")
-        self._update_upload_progress(upload, 50, f'تم تقسيم الملف إلى {len(sections)} قسم')
-        
-        # ===== الخطوة 4: إنشاء المجموعات =====
-        Group.objects.filter(upload=upload).delete()
-        
-        self._update_upload_progress(upload, 60, 'جاري إنشاء ملفات PDF للمجموعات...')
-        created_groups = self._create_groups_ultra_fast(doc, sections, separator_barcode, upload)
-        
-        # إغلاق الوثيقة
-        doc.close()
-        
-        # ===== الخطوة 5: تحديث الحالة النهائية =====
-        processing_time = time.time() - start_time
-        logger.info(f"⏱️ وقت المعالجة: {processing_time:.2f} ثانية")
-        
-        with self._lock:
-            upload.status = 'completed'
-            upload.progress = 100
-            upload.message = f'تمت المعالجة في {processing_time:.1f} ثانية. المجموعات: {len(created_groups)}'
-            upload.save(update_fields=['status', 'progress', 'message'])
-        
-        # حذف الملف الأصلي (اختياري)
-        # self._delete_original_if_needed(pdf_path)
-        
-        logger.info(f"✅ اكتملت المعالجة لـ upload {upload_id}. المجموعات: {len(created_groups)}")
-        return created_groups
-        
-    except Exception as e:
-        logger.error(f"❌ خطأ في معالجة upload {upload_id}: {e}", exc_info=True)
-        with self._lock:
-            upload.status = 'failed'
-            upload.message = f'خطأ في المعالجة: {str(e)[:100]}'
-            upload.save(update_fields=['status', 'message'])
+            # الحالة: بدء المعالجة
+            with self._lock:
+                upload.status = 'processing'
+                upload.progress = 5
+                upload.message = 'جاري تهيئة الملف...'
+                upload.save(update_fields=['status', 'progress', 'message'])
+            
+            # ===== الخطوة 1: فتح PDF وتحليل =====
+            logger.info(f"📖 فتح الملف: {pdf_path}")
+            doc = fitz.open(pdf_path)
+            total_pages = doc.page_count
+            
+            logger.info(f"📄 عدد الصفحات: {total_pages}")
+            
+            self._update_upload_progress(upload, 25, f'تم تحميل {total_pages} صفحة')
+            
+            # ===== الخطوة 2: اكتشاف الباركود الفاصل =====
+            separator_barcode = self._find_separator_barcode_fast(doc, total_pages)
+            logger.info(f"🔍 باركود الفصل: {separator_barcode}")
+            
+            self._update_upload_progress(upload, 30, f'تم تحديد الباركود الفاصل')
+            
+            # ===== الخطوة 3: تقسيم الصفحات =====
+            self._update_upload_progress(upload, 35, 'جاري تقسيم الصفحات إلى أقسام...')
+            sections = self._split_pages_fast(doc, separator_barcode, total_pages)
+            
+            if not sections:
+                raise Exception("لم يتم العثور على أقسام - ربما الباركود الفاصل غير صحيح")
+            
+            logger.info(f"📊 عدد الأقسام: {len(sections)}")
+            self._update_upload_progress(upload, 50, f'تم تقسيم الملف إلى {len(sections)} قسم')
+            
+            # ===== الخطوة 4: إنشاء المجموعات =====
+            Group.objects.filter(upload=upload).delete()
+            
+            self._update_upload_progress(upload, 60, 'جاري إنشاء ملفات PDF للمجموعات...')
+            created_groups = self._create_groups_ultra_fast(doc, sections, separator_barcode, upload)
+            
+            # إغلاق الوثيقة
+            doc.close()
+            
+            # ===== الخطوة 5: تحديث الحالة النهائية =====
+            processing_time = time.time() - start_time
+            logger.info(f"⏱️ وقت المعالجة: {processing_time:.2f} ثانية")
+            
+            with self._lock:
+                upload.status = 'completed'
+                upload.progress = 100
+                upload.message = f'تمت المعالجة في {processing_time:.1f} ثانية. المجموعات: {len(created_groups)}'
+                upload.save(update_fields=['status', 'progress', 'message'])
+            
+            # حذف الملف الأصلي (اختياري)
+            # self._delete_original_if_needed(pdf_path)
+            
+            logger.info(f"✅ اكتملت المعالجة لـ upload {upload_id}. المجموعات: {len(created_groups)}")
+            return created_groups
+            
+        except Exception as e:
+            logger.error(f"❌ خطأ في معالجة upload {upload_id}: {e}", exc_info=True)
+            with self._lock:
+                upload.status = 'failed'
+                upload.message = f'خطأ في المعالجة: {str(e)[:100]}'
+                upload.save(update_fields=['status', 'message'])
         raise
 
 
