@@ -130,19 +130,23 @@ def process_upload(request, upload_id):
         upload.progress = 5
         upload.save(update_fields=['status', 'progress'])
         
-        # بدء المعالجة في thread منفصل
+        # استخدام الخدمة الصحيحة
         def background_process():
             try:
+                # استيراد الخدمة داخل الدالة لتجنب مشاكل الاستيراد
+                from .services import UltraFastBarcodeOCRService
                 service = UltraFastBarcodeOCRService()
                 service.process_single_pdf(upload)
             except Exception as e:
                 logger.error(f"Background processing failed: {e}")
+                upload.status = 'failed'
+                upload.message = str(e)[:200]
+                upload.save(update_fields=['status', 'message'])
         
-        import threading
+        # بدء المعالجة في thread منفصل
         thread = threading.Thread(target=background_process, daemon=True)
         thread.start()
         
-        # إرجاع استجابة فورية
         return JsonResponse({
             'success': True, 
             'message': 'بدأت المعالجة...',
@@ -156,7 +160,6 @@ def process_upload(request, upload_id):
             'success': False, 
             'message': f'خطأ فوري: {str(e)[:100]}'
         })
-
 
 @login_required
 def check_status(request, upload_id):

@@ -544,7 +544,15 @@ document.getElementById("upload-form").addEventListener("submit", async function
             });
             
             await Promise.allSettled(processPromises);
-            
+          // بعد اكتمال المعالجة، محاولة التحميل التلقائي للملفات الناجحة
+            for (let i = 0; i < uploadsForResults.length; i++) {
+                const upload = uploadsForResults[i];
+                if (upload.status === 'completed' && upload.groups_count > 0) {
+                    setTimeout(() => {
+                        checkAndAutoDownload(upload.id, upload.name);
+                    }, 1000 + (i * 500)); // تأخير متدرج
+                }
+            }  
             // 3. إخفاء فورم الرفع وعرض النتائج
             showResultsSection();
             
