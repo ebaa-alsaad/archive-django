@@ -4,6 +4,7 @@ import logging
 import traceback
 import zipfile
 from pathlib import Path
+from threading import Thread
 from django.shortcuts import render, get_object_or_404, redirect
 from django.http import JsonResponse, FileResponse
 from django.contrib.auth.decorators import login_required
@@ -30,7 +31,6 @@ def upload_list(request):
 # Upload & Processing Views
 # ============================
 
-@csrf_exempt
 @login_required
 def upload_create(request):
     """رفع الملفات - إصلاح خطأ 500"""
@@ -68,7 +68,6 @@ def upload_create(request):
                     print(f"DEBUG: معالجة الملف: {f.name} - حجم: {f.size} بايت")
                     
                     # إنشاء اسم فريد
-                    import uuid
                     unique_name = f"{uuid.uuid4().hex}_{f.name}"
                     
                     # تأكد من وجود مجلد الرفع
@@ -122,9 +121,7 @@ def upload_create(request):
 
 @login_required
 def process_upload(request, upload_id):
-    """بدء معالجة الملف - نسخة سريعة"""
-    if request.method != 'POST':
-        return JsonResponse({'success': False, 'message': 'طريقة غير مسموحة'})
+    """بدء معالجة الملف """
     
     try:
         upload = get_object_or_404(Upload, id=upload_id, user=request.user)
@@ -162,7 +159,6 @@ def process_upload(request, upload_id):
                 print(f"ERROR in processing: {e}")
         
         # تشغيل المعالجة في الخلفية بدون انتظار
-        from threading import Thread
         thread = Thread(target=quick_process)
         thread.daemon = True
         thread.start()

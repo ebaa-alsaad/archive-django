@@ -101,8 +101,6 @@ CACHES = {
 DATA_UPLOAD_MAX_MEMORY_SIZE = 1024 * 1024 * 1024
 FILE_UPLOAD_MAX_MEMORY_SIZE = 1024 * 1024 * 1024
 
-import os
-
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
