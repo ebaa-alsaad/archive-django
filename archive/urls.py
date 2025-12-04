@@ -19,7 +19,7 @@ urlpatterns = [
     path('dashboard/', views.dashboard_view, name='dashboard'),
     
     # Processing app
-    path('', include(('processing.urls', 'processing'), namespace='processing')),
+    path('', include('processing.urls')),
 ]
 
 # Serve media files in development

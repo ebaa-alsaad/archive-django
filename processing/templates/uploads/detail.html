@@ -12,7 +12,7 @@
     <p class="mb-3"><b>عدد الصفحات:</b> {{ upload.total_pages }}</p>
 
     <div class="mt-6 flex gap-4">
-        <a href="{% url 'download_file' upload.id %}" class="bg-blue-600 text-white px-4 py-2 rounded">
+        <a href="{% url 'processing:download_file' upload.id %}" class="bg-blue-600 text-white px-4 py-2 rounded">
             تحميل الملف
         </a>
         <a href="{% url 'processing:process_upload' upload.id %}" class="bg-green-600 text-white px-4 py-2 rounded">
