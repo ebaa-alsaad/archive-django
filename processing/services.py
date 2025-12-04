@@ -2,6 +2,7 @@ import os
 import re
 import hashlib
 import logging
+import subprocess
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
 from pdf2image import convert_from_path
@@ -27,6 +28,32 @@ class BarcodeOCRService:
         self.ocr_cache = {}
         self.image_cache = {}
         self.barcode_cache = {}
+        
+        # التحقق من poppler
+        self._check_poppler_installed()
+        
+    def _check_poppler_installed(self):
+        """التحقق من تثبيت poppler في النظام"""
+        try:
+            # التحقق من وجود pdftoppm
+            result = subprocess.run(['which', 'pdftoppm'], 
+                                  capture_output=True, text=True)
+            if result.returncode != 0:
+                raise RuntimeError("poppler-utils not installed. Run: sudo apt install poppler-utils")
+            
+            # التحقق من وجود pdfinfo
+            result = subprocess.run(['pdfinfo', '--version'], 
+                                  capture_output=True, text=True)
+            logger.info(f"Poppler version found: {result.stdout.strip()}")
+            
+            # تعيين مسار poppler لـ pdf2image
+            poppler_path = result.stdout.split()[1] if 'Poppler' in result.stdout else None
+            if poppler_path:
+                os.environ['POPPLER_PATH'] = poppler_path
+                
+        except Exception as e:
+            logger.error(f"Poppler check failed: {e}")
+            raise RuntimeError(f"Poppler check failed: {e}")
 
     def process_single_pdf(self, upload):
         """معالجة ملف PDF واحد وتحديث حالة الـ Upload"""
@@ -38,6 +65,9 @@ class BarcodeOCRService:
             if not pdf_path.exists():
                 raise FileNotFoundError(f"PDF file not found: {pdf_path}")
 
+            # التحقق من أن الملف PDF صالح
+            self._validate_pdf_file(pdf_path)
+
             # تحديث الحالة
             upload.status = 'processing'
             upload.progress = 30
@@ -46,11 +76,22 @@ class BarcodeOCRService:
             # حذف أي مجموعات سابقة
             Group.objects.filter(upload=upload).delete()
 
-            # تحويل الصفحات إلى صور
-            images = convert_from_path(str(pdf_path), dpi=150, thread_count=4)
+            # تحويل الصفحات إلى صور مع تعيين مسار poppler صراحةً
+            images = convert_from_path(
+                str(pdf_path), 
+                dpi=150, 
+                thread_count=2,  # قلل عدد الثريدات لتجنب مشاكل الذاكرة
+                poppler_path=self._get_poppler_path()
+            )
+            
+            logger.info(f"Converted PDF to {len(images)} images")
+
+            if not images:
+                raise RuntimeError("Failed to convert PDF to images")
 
             # قراءة الباركود للفصل
             separator_barcode = self.read_barcode_from_image(images[0]) or "default_barcode"
+            logger.info(f"Separator barcode: {separator_barcode}")
 
             # تقسيم الصفحات حسب الباركود
             sections, current_section = [], []
@@ -59,14 +100,17 @@ class BarcodeOCRService:
                 if barcode == separator_barcode:
                     if current_section:
                         sections.append(current_section)
+                        logger.info(f"Section {len(sections)}: {len(current_section)} pages")
                     current_section = []
                 else:
                     current_section.append(i)
             if current_section:
                 sections.append(current_section)
+                logger.info(f"Last section {len(sections)}: {len(current_section)} pages")
 
             upload.progress = 60
             upload.save(update_fields=['progress'])
+            logger.info(f"Found {len(sections)} sections in PDF")
 
             # إنشاء ملفات PDF لكل مجموعة
             created_groups = []
@@ -76,6 +120,7 @@ class BarcodeOCRService:
                     
                 # استخراج النص لإنشاء اسم المجموعة
                 text = self.extract_text_from_image(images[pages[0]])
+                logger.info(f"Section {idx+1} OCR text preview: {text[:100]}...")
                 
                 # البحث عن: رقم قيد، رقم فاتورة، رقم سند، تاريخ
                 filename = None
@@ -84,18 +129,20 @@ class BarcodeOCRService:
                     (r'رقم\s*الفاتورة\s*[:]?\s*(\d+)', 'فاتورة'),
                     (r'رقم\s*السند\s*[:]?\s*(\d+)', 'سند'),
                     (r'تاريخ\s*[:]?\s*(\d{4}[-/]\d{2}[-/]\d{2})', 'تاريخ'),
-                    (r'(\d{4}[-/]\d{2}[-/]\d{2})', 'تاريخ'),  # أي تاريخ
+                    (r'(\d{4}[-/]\d{2}[-/]\d{2})', 'تاريخ'),
                 ]
                 
                 for pattern, prefix in patterns:
                     m = re.search(pattern, text)
                     if m:
                         filename = f"{prefix}_{m.group(1)}"
+                        logger.info(f"Found pattern '{prefix}' with value: {m.group(1)}")
                         break
                 
                 # إذا لم نجد شيئاً، استخدم الباركود ورقم المجموعة
                 if not filename:
                     filename = f"{separator_barcode}_{idx+1}"
+                    logger.info(f"Using default filename: {filename}")
                 
                 # تنظيف اسم الملف
                 filename = self.sanitize_filename(filename)
@@ -115,6 +162,8 @@ class BarcodeOCRService:
                 new_doc.save(output_path)
                 new_doc.close()
                 orig_doc.close()
+                
+                logger.info(f"Created group PDF: {output_path} with {len(pages)} pages")
 
                 # حفظ المجموعة في قاعدة البيانات
                 group = Group.objects.create(
@@ -124,9 +173,10 @@ class BarcodeOCRService:
                     user=upload.user,
                     upload=upload,
                     filename=filename_safe,
-                    name=filename  # حفظ الاسم المستخرج
+                    name=filename
                 )
                 created_groups.append(group)
+                logger.info(f"Created group in database: {group.id}")
 
                 # تحديث التقدم
                 progress = 70 + int((idx + 1) / len(sections) * 30)
@@ -155,47 +205,115 @@ class BarcodeOCRService:
             upload.status = 'failed'
             upload.message = f'خطأ في المعالجة: {str(e)}'
             upload.save(update_fields=['status', 'message'])
-            logger.error(f"Error processing upload {upload_id}: {e}")
+            logger.error(f"Error processing upload {upload_id}: {e}", exc_info=True)
             raise
     
     # -----------------------------
-    # دوال مساعدة
+    # دوال مساعدة محسنة
     # -----------------------------
+    
+    def _validate_pdf_file(self, pdf_path):
+        """التحقق من أن الملف PDF صالح"""
+        try:
+            import fitz
+            doc = fitz.open(pdf_path)
+            page_count = doc.page_count
+            doc.close()
+            logger.info(f"PDF validation: {pdf_path} has {page_count} pages")
+            return True
+        except Exception as e:
+            logger.error(f"Invalid PDF file {pdf_path}: {e}")
+            raise RuntimeError(f"Invalid PDF file: {e}")
+    
+    def _get_poppler_path(self):
+        """الحصول على مسار poppler"""
+        # جرب المسارات الشائعة
+        possible_paths = [
+            '/usr/bin',
+            '/usr/local/bin',
+            '/opt/homebrew/bin',  # macOS
+            '/usr/lib/x86_64-linux-gnu',  # Ubuntu
+        ]
+        
+        for path in possible_paths:
+            pdftoppm_path = os.path.join(path, 'pdftoppm')
+            if os.path.exists(pdftoppm_path):
+                logger.info(f"Found poppler at: {path}")
+                return path
+        
+        # إذا لم نجد، استخدم الافتراضي
+        logger.warning("Using default poppler path (system PATH)")
+        return None
     
     def read_barcode_from_image(self, img):
         """قراءة الباركود من الصورة"""
-        if img in self.barcode_cache:
-            return self.barcode_cache[img]
-        barcode = None
-        for obj in decode_barcode(img):
-            barcode = obj.data.decode("utf-8")
-            break
-        self.barcode_cache[img] = barcode
-        return barcode
+        try:
+            if img in self.barcode_cache:
+                return self.barcode_cache[img]
+            
+            # تحويل الصورة إلى تنسيق مناسب للباركود
+            import cv2
+            import numpy as np
+            
+            if hasattr(img, 'mode') and img.mode == 'RGBA':
+                img = img.convert('RGB')
+            
+            img_array = np.array(img)
+            gray = cv2.cvtColor(img_array, cv2.COLOR_RGB2GRAY)
+            
+            barcode = None
+            for obj in decode_barcode(gray):
+                barcode = obj.data.decode("utf-8", errors='ignore')
+                logger.info(f"Found barcode: {barcode}")
+                break
+                
+            self.barcode_cache[img] = barcode
+            return barcode
+            
+        except Exception as e:
+            logger.warning(f"Barcode reading failed: {e}")
+            return None
 
     def extract_text_from_image(self, img):
         """استخراج النص من الصورة باستخدام OCR"""
-        if img in self.ocr_cache:
-            return self.ocr_cache[img]
-        text = pytesseract.image_to_string(img, lang="ara").strip()
-        self.ocr_cache[img] = text
-        return text
-
-    def generate_filename(self, images, page_number, barcode, idx):
-        """إنشاء اسم ملف للمجموعة"""
-        text = self.extract_text_from_image(images[page_number])
-        for pattern in [r'سند\s*[:\-]?\s*(\d+)', r'قيد\s*[:\-]?\s*(\d+)', r'(\d{4}-\d{2}-\d{2})']:
-            m = re.search(pattern, text)
-            if m:
-                return self.sanitize_filename(m.group(1))
-        return self.sanitize_filename(f"{barcode}_{idx+1}")
+        try:
+            if img in self.ocr_cache:
+                return self.ocr_cache[img]
+            
+            # تحسين الصورة للـ OCR
+            import cv2
+            import numpy as np
+            
+            img_array = np.array(img)
+            
+            # تحويل إلى رمادي
+            if len(img_array.shape) == 3:
+                gray = cv2.cvtColor(img_array, cv2.COLOR_RGB2GRAY)
+            else:
+                gray = img_array
+            
+            # تحسين التباين
+            gray = cv2.equalizeHist(gray)
+            
+            # التحويل مرة أخرى إلى صورة PIL
+            from PIL import Image
+            enhanced_img = Image.fromarray(gray)
+            
+            text = pytesseract.image_to_string(enhanced_img, lang="ara+eng").strip()
+            self.ocr_cache[img] = text
+            return text
+            
+        except Exception as e:
+            logger.warning(f"OCR failed: {e}")
+            return ""
 
     def sanitize_filename(self, filename):
         """تنظيف اسم الملف من الأحرف غير المسموحة"""
         filename = re.sub(r'[^\w\-_\.]', '_', filename)
-        return filename or f"file_{os.getpid()}"
+        filename = filename.strip('_.')
+        return filename or f"file_{os.getpid()}_{hash(filename) % 10000}"
 
-    def process_multiple_pdfs(self, uploads, max_workers=4):
+    def process_multiple_pdfs(self, uploads, max_workers=2):
         """معالجة عدة ملفات PDF بالتزامن"""
         results = {}
         
@@ -204,6 +322,7 @@ class BarcodeOCRService:
                 groups = self.process_single_pdf(upload)
                 return upload.id, {"success": True, "groups": groups}
             except Exception as e:
+                logger.error(f"Failed to process upload {upload.id}: {e}")
                 return upload.id, {"success": False, "error": str(e)}
         
         with ThreadPoolExecutor(max_workers=max_workers) as executor:

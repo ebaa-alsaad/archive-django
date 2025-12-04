@@ -15,28 +15,43 @@
     </div>
 
     <!-- Toast -->
-    <div id="toast" class="fixed top-4 right-4 z-50 pointer-events-none">
+    <div id="toast" class="fixed top-4 right-4 z-[100] pointer-events-none">
         <div class="bg-white shadow-lg rounded-xl px-6 py-4 flex items-center space-x-3 rtl:space-x-reverse opacity-0 transition-opacity duration-300 border border-green-200">
             <i class="fa-solid fa-check-circle text-green-500"></i>
             <span class="text-gray-800 font-semibold"></span>
         </div>
     </div>
 
-    <!-- Delete Modal - الآن داخل الصفحة (inline) -->
-    <div id="delete-modal-container" class="hidden">
-        <div class="bg-white rounded-2xl p-6 shadow-2xl border border-red-200 mb-6">
-            <div class="text-center">
-                <div class="inline-flex items-center justify-center w-16 h-16 bg-red-100 rounded-full mb-4">
-                    <i class="fa-solid fa-trash-alt text-red-600 text-2xl"></i>
+    <!-- Delete Modal - POPUP حقيقي -->
+    <div id="delete-modal" class="hidden fixed inset-0 z-[9999] overflow-y-auto">
+        <div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center">
+            <!-- Overlay -->
+            <div class="fixed inset-0 bg-black/50 backdrop-blur-sm transition-opacity"></div>
+            
+            <!-- Modal Content -->
+            <div class="relative bg-white rounded-2xl shadow-2xl max-w-md w-full mx-auto overflow-hidden transform transition-all">
+                <!-- Modal Header -->
+                <div class="p-6 text-center border-b border-gray-200">
+                    <div class="inline-flex items-center justify-center w-16 h-16 bg-red-100 rounded-full mb-4">
+                        <i class="fa-solid fa-trash-alt text-red-600 text-2xl"></i>
+                    </div>
+                    <h3 class="text-xl font-bold mb-2 text-red-700">تأكيد الحذف</h3>
                 </div>
-                <h3 class="text-xl font-bold mb-4 text-red-700">تأكيد الحذف</h3>
-                <p id="delete-modal-text" class="text-gray-700 mb-6 text-lg"></p>
-                <div class="flex justify-center space-x-4 rtl:space-x-reverse">
-                    <button id="cancel-delete" class="px-6 py-2.5 bg-gray-200 text-gray-700 rounded-xl hover:bg-gray-300 transition-colors font-medium">
+                
+                <!-- Modal Body -->
+                <div class="p-6">
+                    <p id="delete-modal-text" class="text-gray-700 mb-6 text-center text-lg"></p>
+                </div>
+                
+                <!-- Modal Footer -->
+                <div class="p-6 bg-gray-50 border-t border-gray-200 flex justify-center space-x-4 rtl:space-x-reverse">
+                    <button id="cancel-delete" 
+                            class="px-6 py-2.5 bg-gray-200 text-gray-700 rounded-xl hover:bg-gray-300 transition-colors font-medium flex-1 max-w-[120px]">
                         إلغاء
                     </button>
-                    <button id="confirm-delete" class="px-6 py-2.5 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-colors font-medium flex items-center">
-                        <i class="fa-solid fa-trash ml-2"></i> تأكيد الحذف
+                    <button id="confirm-delete" 
+                            class="px-6 py-2.5 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-colors font-medium flex-1 max-w-[120px] flex items-center justify-center">
+                        <i class="fa-solid fa-trash ml-2"></i> تأكيد
                     </button>
                 </div>
             </div>
@@ -254,7 +269,7 @@ function updateSelectedCount() {
     document.getElementById('multi-delete-btn').disabled = selected === 0;
 }
 
-// فتح البوب اب (الآن داخل الصفحة)
+// فتح البوب اب
 function openDeleteModal(mode, items){
     currentMode = mode;
     deleteQueue = items;
@@ -268,25 +283,17 @@ function openDeleteModal(mode, items){
     
     document.getElementById('delete-modal-text').innerHTML = text;
     
-    // إظهار الـ modal وإخفاء أقسام أخرى مؤقتاً
-    document.getElementById('delete-modal-container').classList.remove('hidden');
-    document.querySelector('.bg-white.p-6.rounded-2xl').classList.add('opacity-50', 'pointer-events-none');
-    document.getElementById('multi-delete-section')?.classList.add('opacity-50', 'pointer-events-none');
-    
-    // التمرير للـ modal
-    document.getElementById('delete-modal-container').scrollIntoView({ 
-        behavior: 'smooth', 
-        block: 'start' 
-    });
+    // إظهار الـ modal
+    document.getElementById('delete-modal').classList.remove('hidden');
+    document.body.classList.add('overflow-hidden'); // منع التمرير
 }
 
 // إغلاق البوب اب
 function closeDeleteModal(){
     deleteQueue = [];
     currentMode = null;
-    document.getElementById('delete-modal-container').classList.add('hidden');
-    document.querySelector('.bg-white.p-6.rounded-2xl').classList.remove('opacity-50', 'pointer-events-none');
-    document.getElementById('multi-delete-section')?.classList.remove('opacity-50', 'pointer-events-none');
+    document.getElementById('delete-modal').classList.add('hidden');
+    document.body.classList.remove('overflow-hidden');
 }
 
 // حذف فردي
@@ -362,8 +369,10 @@ document.getElementById('confirm-delete').addEventListener('click', async () => 
     let failed = 0;
     
     // إظهار تحميل
-    document.getElementById('confirm-delete').innerHTML = '<i class="fa-solid fa-spinner fa-spin ml-2"></i> جاري الحذف...';
-    document.getElementById('confirm-delete').disabled = true;
+    const confirmBtn = document.getElementById('confirm-delete');
+    const originalText = confirmBtn.innerHTML;
+    confirmBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin ml-2"></i> جاري الحذف...';
+    confirmBtn.disabled = true;
     
     for(const item of deleteQueue){
         try {
@@ -389,8 +398,8 @@ document.getElementById('confirm-delete').addEventListener('click', async () => 
     }
 
     // استعادة الزر
-    document.getElementById('confirm-delete').innerHTML = '<i class="fa-solid fa-trash ml-2"></i> تأكيد الحذف';
-    document.getElementById('confirm-delete').disabled = false;
+    confirmBtn.innerHTML = originalText;
+    confirmBtn.disabled = false;
     
     // إظهار رسالة النتيجة
     if (failed === 0) {
@@ -426,9 +435,16 @@ document.querySelectorAll('.select-row').forEach(cb => {
     cb.addEventListener('change', updateSelectedCount);
 });
 
-// إغلاق الـ modal عند الضغط على ESC
+// إغلاق الـ modal عند الضغط على ESC أو النقر خارج المحتوى
 document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape' && !document.getElementById('delete-modal-container').classList.contains('hidden')) {
+    if (e.key === 'Escape' && !document.getElementById('delete-modal').classList.contains('hidden')) {
+        closeDeleteModal();
+    }
+});
+
+// إغلاق عند النقر خارج محتوى الـ modal
+document.getElementById('delete-modal').addEventListener('click', function(e) {
+    if (e.target === this) {
         closeDeleteModal();
     }
 });
@@ -469,18 +485,28 @@ tbody tr:hover {
 }
 
 /* تأثيرات للـ modal */
-#delete-modal-container {
-    animation: fadeIn 0.3s ease-out;
+#delete-modal {
+    animation: fadeIn 0.2s ease-out;
 }
 
 @keyframes fadeIn {
-    from { opacity: 0; transform: translateY(-10px); }
-    to { opacity: 1; transform: translateY(0); }
+    from { opacity: 0; }
+    to { opacity: 1; }
 }
 
-/* تأثير عند التمرير للـ modal */
-html {
-    scroll-behavior: smooth;
+#delete-modal > div:first-child {
+    animation: slideUp 0.3s ease-out;
+}
+
+@keyframes slideUp {
+    from { 
+        opacity: 0;
+        transform: translateY(20px) scale(0.95);
+    }
+    to { 
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
 }
 </style>
 {% endblock %}
