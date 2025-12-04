@@ -133,14 +133,21 @@ def process_upload(request, upload_id):
         # استخدام الخدمة الصحيحة
         def background_process():
             try:
-                # استيراد الخدمة داخل الدالة لتجنب مشاكل الاستيراد
-                from .services import UltraFastBarcodeOCRService
-                service = UltraFastBarcodeOCRService()
+                service = BarcodeOCRService()
                 service.process_single_pdf(upload)
+                
+                # ✅ التحقق من النتيجة
+                upload.refresh_from_db()
+                if upload.status == 'completed' and upload.groups.count() > 0:
+                    logger.info(f"✅ تمت معالجة {upload.id} بنجاح مع {upload.groups.count()} مجموعة")
+                else:
+                    logger.warning(f"⚠️ المعالجة اكتملت ولكن لا توجد مجموعات: {upload.id}")
+                    
             except Exception as e:
-                logger.error(f"Background processing failed: {e}")
+                logger.error(f"Background processing failed for upload {upload.id}: {e}", exc_info=True)
+                upload.refresh_from_db()
                 upload.status = 'failed'
-                upload.message = str(e)[:200]
+                upload.message = f'فشل المعالجة: {str(e)[:200]}'
                 upload.save(update_fields=['status', 'message'])
         
         # بدء المعالجة في thread منفصل
@@ -155,11 +162,12 @@ def process_upload(request, upload_id):
         })
         
     except Exception as e:
-        logger.error(f"Error in process_upload: {e}")
+        logger.error(f"Error in process_upload: {e}", exc_info=True)
         return JsonResponse({
             'success': False, 
             'message': f'خطأ فوري: {str(e)[:100]}'
         })
+
 
 @login_required
 def check_status(request, upload_id):
