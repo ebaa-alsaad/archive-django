@@ -1,47 +1,86 @@
 {% extends "base.html" %}
 {% block content %}
+
 <div class="max-w-6xl mx-auto space-y-10 p-4 sm:p-6 lg:p-8">
     <h2 class="text-5xl font-extrabold text-gray-900 text-center mb-10">
         <i class="fa-solid fa-cloud-arrow-up text-blue-600 ml-3"></i> رفع ومعالجة ملفات PDF متعددة
     </h2>
 
+    <!-- Toast Messages -->
     <div id="toast-container" class="fixed top-5 right-5 z-[100] space-y-2 max-w-sm"></div>
 
-    <div id="upload-card" class="bg-white p-6 md:p-10 rounded-3xl shadow-2xl border border-gray-200">
-        <input type="hidden" id="csrf-token" value="{{ csrf_token }}">
-        
-        <form id="upload-form" enctype="multipart/form-data">
-            <input id="file-input" type="file" name="file[]" accept="application/pdf" class="hidden" multiple/>
-            <div id="drop-zone"
-                 class="flex flex-col items-center justify-center w-full h-56 border-4 border-dashed border-gray-300 bg-gray-50 hover:bg-gray-100 rounded-2xl cursor-pointer transition-all duration-300">
-                <div class="text-center p-4">
-                    <i class="fa-solid fa-file-arrow-up text-7xl mb-4 text-blue-500"></i>
-                    <p class="text-2xl font-extrabold text-gray-800">
-                        اسحب وأفلت ملفات PDF هنا
-                    </p>
-                    <p class="text-md text-gray-500 mt-1">أو <span class="text-blue-600 font-semibold hover:text-blue-800 transition-colors">انقر للتحميل</span>. (يمكنك رفع عدة ملفات)</p>
-                </div>
-            </div>
-
-            <ul id="file-list" class="space-y-4 mt-6 hidden"></ul>
-
-            <button type="submit" id="start-archiving"
-                    disabled
-                    class="w-full mt-8 bg-gradient-to-r from-blue-700 to-blue-500 text-white px-8 py-4 rounded-xl font-extrabold text-xl shadow-lg shadow-blue-200 disabled:opacity-50 hover:from-blue-800 hover:to-blue-600 transition-all duration-300 transform hover:scale-[1.005]">
-                بدء رفع ومعالجة الملفات
-            </button>
-        </form>
+    <!-- زر رفع ملفات جديدة (يظهر فقط عند عرض النتائج) -->
+    <div id="new-upload-btn-container" class="hidden flex justify-center mb-6">
+        <button id="new-upload-btn" 
+                class="bg-gradient-to-r from-green-600 to-green-500 text-white px-8 py-3 rounded-xl font-extrabold text-lg shadow-lg shadow-green-200 hover:from-green-700 hover:to-green-600 transition-all duration-300 transform hover:scale-[1.02] flex items-center">
+            <i class="fa-solid fa-plus ml-2"></i> رفع ملفات جديدة
+        </button>
     </div>
 
-    <div id="results-container" class="hidden bg-white p-8 rounded-3xl shadow-2xl border border-green-200">
-        <div class="text-center mb-6">
-            <i class="fa-solid fa-circle-check text-green-500 text-5xl mb-3"></i>
-            <h3 class="text-2xl font-extrabold text-green-800">تم رفع ومعالجة الملفات بنجاح!</h3>
-            <p class="text-gray-600 mt-2">يمكنك تحميل النتائج أو مراجعة التفاصيل لكل ملف.</p>
+    <!-- قسم الرفع (يخفي عند اكتمال المعالجة) -->
+    <div id="upload-section">
+        <div id="upload-card" class="bg-white p-6 md:p-10 rounded-3xl shadow-2xl border border-gray-200">
+            <input type="hidden" id="csrf-token" value="{{ csrf_token }}">
+            
+            <form id="upload-form" enctype="multipart/form-data">
+                <input id="file-input" type="file" name="file[]" accept="application/pdf" class="hidden" multiple/>
+                <div id="drop-zone"
+                     class="flex flex-col items-center justify-center w-full h-56 border-4 border-dashed border-gray-300 bg-gray-50 hover:bg-gray-100 rounded-2xl cursor-pointer transition-all duration-300">
+                    <div class="text-center p-4">
+                        <i class="fa-solid fa-file-arrow-up text-7xl mb-4 text-blue-500"></i>
+                        <p class="text-2xl font-extrabold text-gray-800">
+                            اسحب وأفلت ملفات PDF هنا
+                        </p>
+                        <p class="text-md text-gray-500 mt-1">أو <span class="text-blue-600 font-semibold hover:text-blue-800 transition-colors">انقر للتحميل</span>. (يمكنك رفع عدة ملفات)</p>
+                    </div>
+                </div>
+
+                <ul id="file-list" class="space-y-4 mt-6 hidden"></ul>
+
+                <button type="submit" id="start-archiving"
+                        disabled
+                        class="w-full mt-8 bg-gradient-to-r from-blue-700 to-blue-500 text-white px-8 py-4 rounded-xl font-extrabold text-xl shadow-lg shadow-blue-200 disabled:opacity-50 hover:from-blue-800 hover:to-blue-600 transition-all duration-300 transform hover:scale-[1.005]">
+                    بدء رفع ومعالجة الملفات
+                </button>
+            </form>
         </div>
-        
-        <div id="results-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+    </div>
+
+    <!-- قسم النتائج (يظهر عند اكتمال المعالجة) -->
+    <div id="results-section" class="hidden">
+        <div class="bg-white p-8 rounded-3xl shadow-2xl border border-green-200">
+            <div class="text-center mb-8">
+                <i class="fa-solid fa-circle-check text-green-500 text-5xl mb-3"></i>
+                <h3 class="text-2xl font-extrabold text-green-800">تم رفع ومعالجة الملفات بنجاح!</h3>
+                <p class="text-gray-600 mt-2">الملفات التالية جاهزة للتحميل:</p>
             </div>
+            
+            <!-- شبكة عرض الملفات المعالجة -->
+            <div id="results-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+                <!-- سيتم ملؤها ديناميكياً -->
+            </div>
+
+            <!-- معلومات إضافية -->
+            <div class="mt-8 pt-6 border-t border-gray-200">
+                <div class="flex flex-col sm:flex-row justify-between items-center gap-4">
+                    <div class="text-gray-600">
+                        <p class="font-medium"><i class="fa-solid fa-info-circle text-blue-500 ml-1"></i> 
+                            يمكنك الآن تحميل الملفات أو <a href="{% url 'processing:upload_list' %}" class="text-blue-600 hover:text-blue-800 font-semibold">عرض جميع الملفات المرفوعة</a>
+                        </p>
+                    </div>
+                    <div class="flex space-x-3 rtl:space-x-reverse">
+                        <button id="show-upload-form" 
+                                class="bg-gradient-to-r from-blue-600 to-blue-500 text-white px-6 py-2.5 rounded-lg font-semibold hover:from-blue-700 hover:to-blue-600 transition-all flex items-center">
+                            <i class="fa-solid fa-arrow-left ml-2"></i> العودة للرفع
+                        </button>
+                        <a href="{% url 'processing:upload_list' %}" 
+                           class="bg-gradient-to-r from-purple-600 to-purple-500 text-white px-6 py-2.5 rounded-lg font-semibold hover:from-purple-700 hover:to-purple-600 transition-all flex items-center">
+                            <i class="fa-solid fa-list ml-2"></i> عرض الكل
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -50,11 +89,30 @@ const fileInput = document.getElementById("file-input");
 const dropZone = document.getElementById("drop-zone");
 const fileList = document.getElementById("file-list");
 const startBtn = document.getElementById("start-archiving");
-const resultsContainer = document.getElementById("results-container");
 const resultsList = document.getElementById("results-list");
 const csrfToken = document.getElementById("csrf-token").value;
 
+// الأقسام الجديدة
+const uploadSection = document.getElementById("upload-section");
+const resultsSection = document.getElementById("results-section");
+const newUploadBtnContainer = document.getElementById("new-upload-btn-container");
+const newUploadBtn = document.getElementById("new-upload-btn");
+const showUploadFormBtn = document.getElementById("show-upload-form");
+
 let selectedFiles = [];
+
+// ------------------------ وظائف التحويل بين الأقسام ------------------------
+function showResultsSection() {
+    uploadSection.classList.add('hidden');
+    resultsSection.classList.remove('hidden');
+    newUploadBtnContainer.classList.remove('hidden');
+}
+
+function showUploadSection() {
+    resultsSection.classList.add('hidden');
+    uploadSection.classList.remove('hidden');
+    newUploadBtnContainer.classList.add('hidden');
+}
 
 // ------------------------ عرض الملفات ------------------------
 function renderFileList() {
@@ -94,12 +152,10 @@ function removeFile(index) {
 
 // ------------------------ إضافة ملفات ------------------------
 fileInput.addEventListener("change", () => {
-    // تصفية الملفات غير PDF
     const newFiles = [...fileInput.files].filter(file => file.type === 'application/pdf');
     selectedFiles = [...selectedFiles, ...newFiles];
     renderFileList();
     startBtn.disabled = selectedFiles.length === 0;
-    // مسح قيمة المدخل للسماح باختيار نفس الملفات مرة أخرى (مهم)
     fileInput.value = ''; 
 });
 
@@ -117,7 +173,6 @@ dropZone.addEventListener("dragleave", () => {
 dropZone.addEventListener("drop", (e) => {
     e.preventDefault();
     dropZone.classList.remove("dragover");
-    // تصفية الملفات غير PDF
     const droppedFiles = [...e.dataTransfer.files].filter(file => file.type === 'application/pdf');
     selectedFiles = [...selectedFiles, ...droppedFiles];
     renderFileList();
@@ -129,7 +184,6 @@ function showToast(message, type = 'success') {
     const toastContainer = document.getElementById('toast-container');
     const toast = document.createElement('div');
     
-    // تحسين تصميم الـ Toast
     const baseClass = 'p-4 rounded-lg shadow-xl font-semibold text-lg flex items-center space-x-3 rtl:space-x-reverse animate-slideInRight';
     let typeClass = type === 'success' ? 'bg-green-500 text-white' : 'bg-red-600 text-white';
     let icon = type === 'success' ? '<i class="fa-solid fa-check-circle text-2xl"></i>' : '<i class="fa-solid fa-triangle-exclamation text-2xl"></i>';
@@ -147,7 +201,7 @@ function showToast(message, type = 'success') {
             toast.remove();
         });
         
-    }, 4500); // 4.5 ثانية قبل بدء الإخفاء
+    }, 4500);
 
     // أضف style للـ animation
     if (!document.getElementById('toast-animations')) {
@@ -188,12 +242,10 @@ document.getElementById("upload-form").addEventListener("submit", async function
         return;
     }
     
-    // تصفية selectedFiles لإنشاء قائمة مرتبة للرفع والمعالجة
-    const filesToUpload = [...selectedFiles]; 
+    const filesToUpload = [...selectedFiles];
 
     startBtn.disabled = true;
     startBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin ml-2"></i> جاري الرفع...';
-    resultsContainer.classList.add("hidden");
     resultsList.innerHTML = "";
     
     // تحديث التقدم لجميع الملفات إلى 10%
@@ -201,11 +253,10 @@ document.getElementById("upload-form").addEventListener("submit", async function
         updateProgress(i, 10);
     }
 
-    // إنشاء FormData واحدة لجميع الملفات
+    // إنشاء FormData
     const formData = new FormData();
     formData.append("csrfmiddlewaretoken", csrfToken);
     
-    // إضافة جميع الملفات إلى FormData
     for (let i = 0; i < filesToUpload.length; i++) {
         formData.append("file[]", filesToUpload[i]);
     }
@@ -213,12 +264,11 @@ document.getElementById("upload-form").addEventListener("submit", async function
     try {
         console.log('بدء رفع الملفات...');
         
-        // **1. عملية الرفع**
+        // 1. عملية الرفع
         const res = await fetch("/uploads/create/", {
             method: "POST",
             body: formData,
             headers: {
-                // إزالة 'Content-Type' ليتمكن المتصفح من تحديدها تلقائيًا لـ FormData
                 'X-Requested-With': 'XMLHttpRequest'
             }
         });
@@ -231,7 +281,7 @@ document.getElementById("upload-form").addEventListener("submit", async function
         
         if(data.success && data.uploads && data.uploads.length > 0){
             
-            // تحديث التقدم بعد الرفع مباشرةً (إلى 70%)
+            // تحديث التقدم بعد الرفع
             for (let i = 0; i < filesToUpload.length; i++) {
                 updateProgress(i, 70);
             }
@@ -239,16 +289,14 @@ document.getElementById("upload-form").addEventListener("submit", async function
             showToast(`تم رفع ${data.uploads.length} ملف بنجاح. بدء المعالجة...`, 'success');
             startBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin ml-2"></i> جاري المعالجة...';
 
-            // **2. عملية المعالجة بالتوازي**
+            // 2. عملية المعالجة بالتوازي
             const processPromises = data.uploads.map(async (upload, index) => {
-                // البحث عن الفهرس المناسب لـ updateProgress
                 const originalIndex = filesToUpload.findIndex(f => f.name === upload.name);
-                if (originalIndex === -1) return; // تخطي إذا لم يتم العثور على الملف الأصلي
+                if (originalIndex === -1) return;
 
                 try {
                     console.log(`بدء معالجة ${upload.id}`);
                     
-                    // تحديث التقدم للمعالجة (إلى 85%)
                     updateProgress(originalIndex, 85);
                     
                     const processRes = await fetch(`/uploads/${upload.id}/process/`, {
@@ -263,28 +311,24 @@ document.getElementById("upload-form").addEventListener("submit", async function
                         throw new Error(`خطأ في معالجة الملف: ${upload.name}`);
                     }
                     
-                    // تأكد من اكتمال المعالجة (إلى 100%)
+                    // التحقق من اكتمال المعالجة
                     updateProgress(originalIndex, 100);
                     
                 } catch (processError) {
                     console.error(`خطأ في معالجة upload ${upload.id}:`, processError);
                     showToast(`فشل في معالجة الملف: ${upload.name}`, 'error');
-                    updateProgress(originalIndex, 100); // إظهار اكتمال الشريط حتى في حالة الخطأ
+                    updateProgress(originalIndex, 100);
                 }
             });
             
-            // انتظر جميع عمليات المعالجة
             await Promise.allSettled(processPromises);
             
-            // **3. عرض النتائج**
+            // 3. إخفاء فورم الرفع وعرض النتائج
+            showResultsSection();
             
-            // إظهار النتائج
-            resultsContainer.classList.remove("hidden");
-            
-            // إضافة بطاقات النتائج
+            // 4. عرض النتائج
             data.uploads.forEach(upload => {
                 const div = document.createElement('div');
-                // بطاقة نتيجة محسّنة
                 div.className = "bg-white p-5 rounded-xl border border-green-100 shadow-lg transition-shadow hover:shadow-xl space-y-3";
                 div.innerHTML = `
                     <p class="text-lg font-extrabold text-gray-900 truncate" title="${upload.name}">
@@ -304,7 +348,7 @@ document.getElementById("upload-form").addEventListener("submit", async function
                 resultsList.appendChild(div);
             });
             
-            // إعادة تعيين النموذج بعد الاكتمال
+            // إعادة تعيين النموذج
             selectedFiles = [];
             fileInput.value = '';
             renderFileList();
@@ -312,15 +356,14 @@ document.getElementById("upload-form").addEventListener("submit", async function
             showToast('اكتملت جميع العمليات بنجاح!', 'success');
             
         } else {
-            const errorMsg = data.message || 'فشل الرفع. لم يتم استلام بيانات الملفات المرفوعة.';
+            const errorMsg = data.message || 'فشل الرفع.';
             showToast(errorMsg, 'error');
         }
         
     } catch(err){
         console.error("خطأ كبير في عملية الرفع:", err);
-        showToast('حدث خطأ فادح أثناء الرفع أو المعالجة: ' + err.message, 'error');
+        showToast('حدث خطأ: ' + err.message, 'error');
         
-        // في حالة الفشل، يتم إرجاع الأشرطة إلى 0% وإظهار الملفات كما هي
         for (let i = 0; i < selectedFiles.length; i++) {
             updateProgress(i, 0);
         }
@@ -330,20 +373,52 @@ document.getElementById("upload-form").addEventListener("submit", async function
     }
 });
 
+// ------------------------ أحداث الأزرار الجديدة ------------------------
+newUploadBtn?.addEventListener('click', showUploadSection);
+showUploadFormBtn?.addEventListener('click', showUploadSection);
+
 // ------------------------ تهيئة ------------------------
-// جعل removeFile متاحة globally
 window.removeFile = removeFile;
 
-// ------------------------ تصميم Drop Zone المحسّن ------------------------
+// إخفاء زر رفع ملفات جديدة عند التحميل الأولي
+newUploadBtnContainer.classList.add('hidden');
+
 </script>
 
 <style>
 /* CSS مخصص للـ Drop Zone عند السحب */
 #drop-zone.dragover {
-    background-color: #e5f1ff !important; /* لون فاتح للأزرق */
-    border-color: #3b82f6 !important; /* أزرق واضح */
+    background-color: #e5f1ff !important;
+    border-color: #3b82f6 !important;
     border-width: 4px !important;
-    box-shadow: 0 0 15px rgba(59, 130, 246, 0.5); /* إضافة ظل خفيف */
+    box-shadow: 0 0 15px rgba(59, 130, 246, 0.5);
+}
+
+/* تأثيرات الانتقال بين الأقسام */
+#upload-section, #results-section {
+    transition: all 0.5s ease-in-out;
+}
+
+#upload-section.hidden {
+    opacity: 0;
+    transform: translateY(-20px);
+    pointer-events: none;
+    position: absolute;
+    width: 100%;
+}
+
+#results-section.hidden {
+    opacity: 0;
+    transform: translateY(20px);
+    pointer-events: none;
+    position: absolute;
+    width: 100%;
+}
+
+#results-section:not(.hidden), #upload-section:not(.hidden) {
+    opacity: 1;
+    transform: translateY(0);
+    position: relative;
 }
 </style>
 {% endblock %}

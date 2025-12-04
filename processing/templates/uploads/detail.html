@@ -3,22 +3,85 @@
 
 {% block content %}
 
-<h2 class="text-2xl font-bold mb-6">📄 تفاصيل الملف</h2>
+<div class="max-w-4xl mx-auto p-4 sm:p-6 lg:p-8">
 
-<div class="bg-white p-6 rounded shadow">
+    <h2 class="text-4xl font-extrabold text-gray-900 text-center mb-10">
+        <i class="fa-solid fa-file-lines text-blue-600 ml-3"></i> تفاصيل الملف المرفوع
+    </h2>
 
-    <p class="mb-3"><b>الاسم:</b> {{ upload.original_filename }}</p>
-    <p class="mb-3"><b>الحالة:</b> {{ upload.status }}</p>
-    <p class="mb-3"><b>عدد الصفحات:</b> {{ upload.total_pages }}</p>
+    <div class="bg-white p-8 rounded-2xl shadow-2xl border border-gray-100 space-y-6">
 
-    <div class="mt-6 flex gap-4">
-        <a href="{% url 'processing:download_file' upload.id %}" class="bg-blue-600 text-white px-4 py-2 rounded">
-            تحميل الملف
-        </a>
-        <a href="{% url 'processing:process_upload' upload.id %}" class="bg-green-600 text-white px-4 py-2 rounded">
-            بدء المعالجة
+        <div class="border-b pb-4 border-gray-200">
+            <h3 class="text-xl font-bold text-gray-800 mb-4">📘 معلومات عامة</h3>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-lg">
+                <p class="flex justify-between items-center bg-gray-50 p-3 rounded-lg">
+                    <span class="font-semibold text-gray-600"><i class="fa-solid fa-tag ml-2 text-blue-500"></i> الاسم الأصلي:</span> 
+                    <span class="text-gray-900 font-medium truncate max-w-[60%]">{{ upload.original_filename }}</span>
+                </p>
+                <p class="flex justify-between items-center bg-gray-50 p-3 rounded-lg">
+                    <span class="font-semibold text-gray-600"><i class="fa-solid fa-hashtag ml-2 text-blue-500"></i> معرف الرفع (ID):</span> 
+                    <span class="text-gray-900 font-medium">{{ upload.id }}</span>
+                </p>
+            </div>
+        </div>
+
+        <div>
+            <h3 class="text-xl font-bold text-gray-800 mb-4">📊 حالة ومعلومات تقنية</h3>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-lg">
+                
+                <div class="bg-white border p-4 rounded-xl shadow-md text-center">
+                    <i class="fa-solid fa-circle-info text-2xl mb-2 
+                        {% if upload.status == 'Processed' %}text-green-500
+                        {% elif upload.status == 'Failed' %}text-red-500
+                        {% else %}text-yellow-500{% endif %}"></i>
+                    <p class="font-semibold text-gray-600 mb-1">الحالة</p>
+                    <p class="text-gray-900 font-extrabold text-xl">{{ upload.status }}</p>
+                </div>
+                
+                <div class="bg-white border p-4 rounded-xl shadow-md text-center">
+                    <i class="fa-solid fa-book-open text-2xl mb-2 text-purple-500"></i>
+                    <p class="font-semibold text-gray-600 mb-1">عدد الصفحات</p>
+                    <p class="text-gray-900 font-extrabold text-xl">{{ upload.total_pages|default:"غير محدد" }}</p>
+                </div>
+
+                {% if upload.created_at %}
+                <div class="bg-white border p-4 rounded-xl shadow-md text-center">
+                    <i class="fa-solid fa-clock text-2xl mb-2 text-indigo-500"></i>
+                    <p class="font-semibold text-gray-600 mb-1">تاريخ الرفع</p>
+                    <p class="text-gray-900 font-extrabold text-xl">{{ upload.created_at|date:"Y-m-d" }}</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <div class="pt-6 border-t border-gray-200">
+            <h3 class="text-xl font-bold text-gray-800 mb-4">🚀 الإجراءات</h3>
+            <div class="flex gap-4">
+                <a href="{% url 'processing:download_file' upload.id %}" 
+                   class="flex items-center justify-center bg-blue-600 text-white px-6 py-3 rounded-xl font-semibold text-lg shadow-md hover:bg-blue-700 transition-colors">
+                    <i class="fa-solid fa-download ml-2"></i> تحميل الملف الأصلي
+                </a>
+                
+                {% if upload.status == 'Processed' %}
+                <a href="{% url 'processing:download_zip' upload.id %}" 
+                   class="flex items-center justify-center bg-green-600 text-white px-6 py-3 rounded-xl font-semibold text-lg shadow-md hover:bg-green-700 transition-colors">
+                    <i class="fa-solid fa-file-zipper ml-2"></i> تحميل الناتج (ZIP)
+                </a>
+                {% endif %}
+            </div>
+        </div>
+
+    </div>
+    
+    <div class="mt-8 text-center">
+        <a href="{% url 'processing:upload_list' %}" 
+           class="inline-flex items-center bg-gray-200 text-gray-700 px-6 py-3 rounded-xl font-semibold hover:bg-gray-300 transition-colors">
+            <i class="fa-solid fa-arrow-right-from-bracket ml-2"></i> العودة لقائمة الملفات
         </a>
     </div>
+
 </div>
 
 {% endblock %}

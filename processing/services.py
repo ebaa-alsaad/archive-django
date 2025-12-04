@@ -29,19 +29,30 @@ class BarcodeOCRService:
         self.barcode_cache = {}
 
     def process_single_pdf(self, upload):
-        upload_id = upload.id
-        logger.info(f"Start processing upload {upload_id}")
-
+    """معالجة ملف PDF واحد وتحديث حالة الـ Upload"""
+    upload_id = upload.id
+    logger.info(f"Start processing upload {upload_id}")
+    
+    try:
         pdf_path = Path(settings.PRIVATE_MEDIA_ROOT) / upload.stored_filename
         if not pdf_path.exists():
             raise FileNotFoundError(f"PDF file not found: {pdf_path}")
 
+        # تحديث الحالة إلى processing
+        upload.status = 'processing'
+        upload.progress = 30
+        upload.save(update_fields=['status', 'progress'])
+        
         # حذف أي مجموعات سابقة
         Group.objects.filter(upload=upload).delete()
 
         # تحويل كل الصفحات إلى صور دفعة واحدة
         images = convert_from_path(str(pdf_path), dpi=150, thread_count=4)
         page_count = len(images)
+
+        # تحديث التقدم
+        upload.progress = 50
+        upload.save(update_fields=['progress'])
 
         # قراءة الباركود للفصل
         separator_barcode = self.read_barcode_from_image(images[0]) or "default_barcode"
@@ -59,49 +70,17 @@ class BarcodeOCRService:
         if current_section:
             sections.append(current_section)
 
-        cache.set(f"upload_progress:{upload_id}", 50, timeout=3600)
-        cache.set(f"upload_message:{upload_id}", f"{len(sections)} sections found...", timeout=3600)
+        # تحديث التقدم
+        upload.progress = 60
+        upload.save(update_fields=['progress'])
 
         # إنشاء ملفات PDF لكل مجموعة
         created_groups = []
         for idx, pages in enumerate(sections):
             if not pages:
                 continue
-            filename = self.generate_filename(images, pages[0], separator_barcode, idx)
-            filename_safe = f"{filename}.pdf"
-            output_dir = Path(settings.PRIVATE_MEDIA_ROOT) / "groups"
-            output_dir.mkdir(parents=True, exist_ok=True)
-            output_path = output_dir / filename_safe
-
-            # إنشاء PDF جديد لكل مجموعة باستخدام PyMuPDF
-            import fitz
-            new_doc = fitz.open()
-            import fitz
-            orig_doc = fitz.open(pdf_path)
-            for p in pages:
-                new_doc.insert_pdf(orig_doc, from_page=p, to_page=p)
-            new_doc.save(output_path)
-            new_doc.close()
-
-            group = Group.objects.create(
-                code=separator_barcode,
-                pdf_path=f"groups/{filename_safe}",
-                pages_count=len(pages),
-                user=upload.user,
-                upload=upload,
-                filename=filename_safe
-            )
-            created_groups.append(group)
-
-            # تحديث الـ progress
-            progress = 50 + int((idx + 1) / len(sections) * 50)
-            cache.set(f"upload_progress:{upload_id}", progress, timeout=3600)
-            cache.set(f"upload_message:{upload_id}", f"Group {idx+1}/{len(sections)} created", timeout=3600)
-
-        cache.set(f"upload_progress:{upload_id}", 100, timeout=3600)
-        cache.set(f"upload_message:{upload_id}", "Processing complete", timeout=3600)
-        return created_groups
-
+            filename = self.generate_filename(images, pages[0], separator_barcode, idx
+            
     # -----------------------------
     # دوال مساعدة
     # -----------------------------

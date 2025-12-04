@@ -265,21 +265,118 @@ def download_file(request, upload_id):
 
 @login_required
 def download_zip(request, upload_id):
-    upload = get_object_or_404(Upload, id=upload_id, user=request.user)
-    if upload.status != 'completed' or upload.groups.count() == 0:
-        return JsonResponse({'success': False, 'error': 'لا يمكن تحميل ZIP الآن'})
+    """تحميل ملف ZIP بعد اكتمال المعالجة - إصلاح خطأ 'لا يمكن تحميل ZIP الآن'"""
+    try:
+        upload = get_object_or_404(Upload, id=upload_id, user=request.user)
+        
+        # تسجيل معلومات التصحيح
+        logger.info(f"download_zip called for upload {upload_id}")
+        logger.info(f"Upload status: {upload.status}")
+        logger.info(f"Groups count: {upload.groups.count()}")
+        
+        # تحقق مما إذا كان يمكن تحميل ZIP
+        if upload.status != 'completed':
+            logger.warning(f"Upload {upload_id} status is {upload.status}, not 'completed'")
+            return JsonResponse({
+                'success': False, 
+                'error': f'لم تكتمل المعالجة بعد. الحالة الحالية: {upload.status}'
+            })
+        
+        if upload.groups.count() == 0:
+            logger.warning(f"Upload {upload_id} has no groups")
+            return JsonResponse({
+                'success': False, 
+                'error': 'لا توجد مجموعات متاحة للتحميل'
+            })
+        
+        # إنشاء مسار ملف ZIP
+        zip_filename = f"{upload.id}_{upload.original_filename}.zip"
+        zip_path = Path(settings.PRIVATE_MEDIA_ROOT) / zip_filename
+        
+        logger.info(f"ZIP path: {zip_path}")
+        logger.info(f"ZIP exists before creation: {zip_path.exists()}")
+        
+        # إذا كان ملف ZIP موجوداً بالفعل، احذفه أولاً
+        if zip_path.exists():
+            try:
+                zip_path.unlink()
+                logger.info(f"Deleted existing ZIP file: {zip_path}")
+            except Exception as e:
+                logger.warning(f"Failed to delete existing ZIP: {e}")
+        
+        # إنشاء مجلد PRIVATE_MEDIA_ROOT إذا لم يكن موجوداً
+        zip_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        # إنشاء ملف ZIP
+        try:
+            with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+                files_added = 0
+                for group in upload.groups.all():
+                    if group.pdf_path:
+                        group_file = Path(settings.PRIVATE_MEDIA_ROOT) / group.pdf_path
+                        if group_file.exists():
+                            # استخدام اسم المجموعة أو معرفها كاسم ملف
+                            if group.name:
+                                arcname = f"{group.name}.pdf"
+                            else:
+                                arcname = f"group_{group.id}.pdf"
+                            
+                            zipf.write(group_file, arcname=arcname)
+                            files_added += 1
+                            logger.info(f"Added to ZIP: {group_file} -> {arcname}")
+                        else:
+                            logger.warning(f"Group file not found: {group_file}")
+                    else:
+                        logger.warning(f"Group {group.id} has no pdf_path")
+                
+                logger.info(f"Total files added to ZIP: {files_added}")
+                
+                if files_added == 0:
+                    return JsonResponse({
+                        'success': False, 
+                        'error': 'لم يتم العثور على أي ملفات PDF للمجموعات'
+                    })
+        
+        except Exception as e:
+            logger.error(f"Error creating ZIP file: {e}")
+            return JsonResponse({
+                'success': False, 
+                'error': f'خطأ في إنشاء ملف ZIP: {str(e)}'
+            })
+        
+        # التحقق من أن ملف ZIP تم إنشاؤه
+        if not zip_path.exists():
+            logger.error(f"ZIP file was not created: {zip_path}")
+            return JsonResponse({
+                'success': False, 
+                'error': 'فشل إنشاء ملف ZIP'
+            })
+        
+        # الحصول على حجم الملف
+        file_size = zip_path.stat().st_size
+        logger.info(f"ZIP file created successfully. Size: {file_size} bytes")
+        
+        # إعداد الاستجابة للتحميل
+        response = FileResponse(open(zip_path, 'rb'), as_attachment=True, filename=zip_filename)
+        response['Content-Type'] = 'application/zip'
+        response['Content-Length'] = file_size
+        response['Content-Disposition'] = f'attachment; filename="{zip_filename}"'
+        
+        return response
+        
+    except Upload.DoesNotExist:
+        logger.error(f"Upload {upload_id} does not exist")
+        return JsonResponse({
+            'success': False, 
+            'error': 'الملف غير موجود'
+        })
+    except Exception as e:
+        logger.error(f"Unexpected error in download_zip: {e}", exc_info=True)
+        return JsonResponse({
+            'success': False, 
+            'error': f'حدث خطأ غير متوقع: {str(e)}'
+        })
 
-    zip_path = Path(settings.PRIVATE_MEDIA_ROOT) / f"{upload.id}.zip"
-
-    if not zip_path.exists():
-        with zipfile.ZipFile(zip_path, 'w') as zipf:
-            for group in upload.groups.all():
-                group_file = Path(settings.PRIVATE_MEDIA_ROOT) / group.pdf_path
-                if group_file.exists():
-                    zipf.write(group_file, arcname=group_file.name)
-
-    zip_filename = f"archive_{upload.original_filename}.zip"
-    return FileResponse(open(zip_path, 'rb'), as_attachment=True, filename=zip_filename)
 
 @login_required
 def upload_delete(request, upload_id):
