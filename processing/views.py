@@ -112,63 +112,52 @@ def upload_create(request):
 
     return render(request, 'uploads/create.html')
 
+
 @login_required
 def process_upload(request, upload_id):
-    """بدء معالجة الملف """
-    
     try:
         upload = get_object_or_404(Upload, id=upload_id, user=request.user)
         
         if upload.status in ['processing', 'completed']:
             return JsonResponse({
                 'success': True, 
+                'status': upload.status,
                 'message': 'الملف قيد المعالجة أو مكتمل بالفعل'
             })
         
-        def quick_process():
-            """معالجة سريعة في الخلفية"""
-            try:
-                # تحديث الحالة بسرعة
-                upload.status = 'processing'
-                upload.progress = 50
-                upload.save(update_fields=['status', 'progress'])
-                
-                # استدعاء خدمة المعالجة
-                service = BarcodeOCRService()
-                result = service.process_single_pdf(upload)
-                
-                # تحديث النتيجة بسرعة
-                upload.status = 'completed' if result else 'failed'
-                upload.progress = 100 if result else 0
-                upload.message = 'تمت المعالجة بنجاح' if result else 'فشلت المعالجة'
-                upload.save(update_fields=['status', 'progress', 'message'])
-                
-                print(f"DEBUG: اكتملت معالجة upload {upload_id}")
-                
-            except Exception as e:
-                upload.status = 'failed'
-                upload.message = f'خطأ: {str(e)}'
-                upload.save(update_fields=['status', 'message'])
-                print(f"ERROR in processing: {e}")
+        # تحديث الحالة فوراً
+        upload.status = 'processing'
+        upload.progress = 5
+        upload.save(update_fields=['status', 'progress'])
         
-        # تشغيل المعالجة في الخلفية بدون انتظار
-        thread = Thread(target=quick_process)
-        thread.daemon = True
+        # بدء المعالجة في thread منفصل
+        def background_process():
+            try:
+                service = UltraFastBarcodeOCRService()
+                service.process_single_pdf(upload)
+            except Exception as e:
+                logger.error(f"Background processing failed: {e}")
+        
+        import threading
+        thread = threading.Thread(target=background_process, daemon=True)
         thread.start()
         
+        # إرجاع استجابة فورية
         return JsonResponse({
             'success': True, 
-            'message': 'تم بدء المعالجة'
+            'message': 'بدأت المعالجة...',
+            'status': 'processing',
+            'progress': 5
         })
         
     except Exception as e:
-        print(f"ERROR: {e}")
+        logger.error(f"Error in process_upload: {e}")
         return JsonResponse({
             'success': False, 
-            'message': f'خطأ: {str(e)}'
+            'message': f'خطأ فوري: {str(e)[:100]}'
         })
 
-# إزالة أو تعطيل check_status مؤقتاً للتسريع
+
 @login_required
 def check_status(request, upload_id):
     """نسخة مبسطة - لا تسبب ضغط على قاعدة البيانات"""
