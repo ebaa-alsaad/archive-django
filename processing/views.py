@@ -33,71 +33,67 @@ def upload_list(request):
 
 @login_required
 def upload_create(request):
-    """رفع الملفات - إصلاح خطأ 500"""
+    """رفع الملفات - حفظ الملف بنفس الاسم"""
     if request.method == 'POST':
         try:
-            print(f"DEBUG: بدء رفع الملفات - المستخدم: {request.user}")
+            logger.info(f"بدء رفع الملفات - المستخدم: {request.user}")
             
-            # استقبال الملفات
             files = []
-            
-            # جرب جميع الأسماء الممكنة للملفات
             if 'file[]' in request.FILES:
                 files = request.FILES.getlist('file[]')
-                print(f"DEBUG: Found files as 'file[]': {len(files)}")
             elif 'file' in request.FILES:
                 files = request.FILES.getlist('file')
-                print(f"DEBUG: Found files as 'file': {len(files)}")
-            else:
-                # طباعة جميع المفاتيح المتاحة للتصحيح
-                print(f"DEBUG: Available FILES keys: {list(request.FILES.keys())}")
             
             if not files:
                 return JsonResponse({
                     'success': False, 
-                    'message': 'لم يتم إرسال ملفات.',
-                    'debug_info': {
-                        'files_keys': list(request.FILES.keys()),
-                        'user': str(request.user)
-                    }
+                    'message': 'لم يتم إرسال ملفات.'
                 })
 
             uploads = []
             for f in files:
                 try:
-                    print(f"DEBUG: معالجة الملف: {f.name} - حجم: {f.size} بايت")
+                    logger.info(f"معالجة الملف: {f.name}")
                     
-                    # إنشاء اسم فريد
-                    unique_name = f"{uuid.uuid4().hex}_{f.name}"
+                    # حفظ الملف بنفس الاسم الأصلي
+                    original_name = f.name
                     
-                    # تأكد من وجود مجلد الرفع
+                    # تأكد من عدم وجود ملف بنفس الاسم
                     upload_dir = Path(settings.PRIVATE_MEDIA_ROOT)
                     upload_dir.mkdir(parents=True, exist_ok=True)
                     
-                    upload_path = upload_dir / unique_name
+                    # إذا كان الملف موجوداً، أضف timestamp
+                    upload_path = upload_dir / original_name
+                    counter = 1
+                    while upload_path.exists():
+                        name_parts = original_name.rsplit('.', 1)
+                        new_name = f"{name_parts[0]}_{counter}.{name_parts[1] if len(name_parts) > 1 else 'pdf'}"
+                        upload_path = upload_dir / new_name
+                        counter += 1
                     
                     # حفظ الملف
                     with open(upload_path, 'wb+') as dest:
                         for chunk in f.chunks():
                             dest.write(chunk)
                     
-                    print(f"DEBUG: تم حفظ الملف في: {upload_path}")
+                    # اسم الملف المخزن (قد يكون مختلفاً إذا كان هناك تكرار)
+                    stored_name = upload_path.name
                     
                     # إنشاء سجل في قاعدة البيانات
                     upload = Upload.objects.create(
                         user=request.user,
-                        original_filename=f.name,
-                        stored_filename=unique_name,
+                        original_filename=original_name,
+                        stored_filename=stored_name,  # يحفظ الاسم الفعلي
                         status='pending',
                         progress=0
                     )
                     uploads.append(upload)
                     
-                    print(f"DEBUG: تم إنشاء سجل upload: {upload.id}")
+                    logger.info(f"تم إنشاء upload: {upload.id} باسم: {stored_name}")
                     
                 except Exception as e:
-                    print(f"ERROR: خطأ في معالجة {f.name}: {str(e)}")
-                    print(traceback.format_exc())
+                    logger.error(f"خطأ في معالجة {f.name}: {str(e)}")
+                    logger.error(traceback.format_exc())
                     continue
 
             return JsonResponse({
@@ -107,16 +103,13 @@ def upload_create(request):
             })
             
         except Exception as e:
-            print(f"CRITICAL ERROR في upload_create: {str(e)}")
-            print(traceback.format_exc())
+            logger.error(f"خطأ في upload_create: {str(e)}")
             return JsonResponse({
                 'success': False,
-                'message': 'حدث خطأ داخلي في الخادم',
+                'message': 'حدث خطأ داخلي',
                 'error': str(e)
             }, status=500)
 
-    # GET request - عرض الصفحة فقط
-    print(f"DEBUG: GET request لـ upload_create من المستخدم: {request.user}")
     return render(request, 'uploads/create.html')
 
 @login_required
@@ -265,118 +258,84 @@ def download_file(request, upload_id):
 
 @login_required
 def download_zip(request, upload_id):
-    """تحميل ملف ZIP بعد اكتمال المعالجة - إصلاح خطأ 'لا يمكن تحميل ZIP الآن'"""
+    """تحميل ملف ZIP بعد اكتمال المعالجة"""
     try:
         upload = get_object_or_404(Upload, id=upload_id, user=request.user)
         
-        # تسجيل معلومات التصحيح
-        logger.info(f"download_zip called for upload {upload_id}")
-        logger.info(f"Upload status: {upload.status}")
-        logger.info(f"Groups count: {upload.groups.count()}")
-        
-        # تحقق مما إذا كان يمكن تحميل ZIP
         if upload.status != 'completed':
-            logger.warning(f"Upload {upload_id} status is {upload.status}, not 'completed'")
             return JsonResponse({
                 'success': False, 
-                'error': f'لم تكتمل المعالجة بعد. الحالة الحالية: {upload.status}'
+                'error': 'لم تكتمل المعالجة بعد'
             })
         
         if upload.groups.count() == 0:
-            logger.warning(f"Upload {upload_id} has no groups")
             return JsonResponse({
                 'success': False, 
                 'error': 'لا توجد مجموعات متاحة للتحميل'
             })
         
-        # إنشاء مسار ملف ZIP
-        zip_filename = f"{upload.id}_{upload.original_filename}.zip"
+        # اسم الملف: نفس اسم الملف الأصلي مع .zip
+        original_name = upload.original_filename
+        if original_name.lower().endswith('.pdf'):
+            original_name = original_name[:-4]  # إزالة .pdf
+        
+        zip_filename = f"{original_name}.zip"
         zip_path = Path(settings.PRIVATE_MEDIA_ROOT) / zip_filename
         
-        logger.info(f"ZIP path: {zip_path}")
-        logger.info(f"ZIP exists before creation: {zip_path.exists()}")
-        
-        # إذا كان ملف ZIP موجوداً بالفعل، احذفه أولاً
+        # حذف ZIP القديم إن وجد
         if zip_path.exists():
             try:
                 zip_path.unlink()
-                logger.info(f"Deleted existing ZIP file: {zip_path}")
-            except Exception as e:
-                logger.warning(f"Failed to delete existing ZIP: {e}")
-        
-        # إنشاء مجلد PRIVATE_MEDIA_ROOT إذا لم يكن موجوداً
-        zip_path.parent.mkdir(parents=True, exist_ok=True)
+            except:
+                pass
         
         # إنشاء ملف ZIP
-        try:
-            with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
-                files_added = 0
-                for group in upload.groups.all():
-                    if group.pdf_path:
-                        group_file = Path(settings.PRIVATE_MEDIA_ROOT) / group.pdf_path
-                        if group_file.exists():
-                            # استخدام اسم المجموعة أو معرفها كاسم ملف
-                            if group.name:
-                                arcname = f"{group.name}.pdf"
-                            else:
-                                arcname = f"group_{group.id}.pdf"
-                            
-                            zipf.write(group_file, arcname=arcname)
-                            files_added += 1
-                            logger.info(f"Added to ZIP: {group_file} -> {arcname}")
-                        else:
-                            logger.warning(f"Group file not found: {group_file}")
-                    else:
-                        logger.warning(f"Group {group.id} has no pdf_path")
-                
-                logger.info(f"Total files added to ZIP: {files_added}")
-                
-                if files_added == 0:
-                    return JsonResponse({
-                        'success': False, 
-                        'error': 'لم يتم العثور على أي ملفات PDF للمجموعات'
-                    })
+        with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+            for group in upload.groups.all():
+                if group.pdf_path and group.name:
+                    group_file = Path(settings.PRIVATE_MEDIA_ROOT) / group.pdf_path
+                    if group_file.exists():
+                        # اسم الملف داخل ZIP
+                        arcname = f"{group.name}.pdf"
+                        zipf.write(group_file, arcname=arcname)
         
-        except Exception as e:
-            logger.error(f"Error creating ZIP file: {e}")
-            return JsonResponse({
-                'success': False, 
-                'error': f'خطأ في إنشاء ملف ZIP: {str(e)}'
-            })
-        
-        # التحقق من أن ملف ZIP تم إنشاؤه
-        if not zip_path.exists():
-            logger.error(f"ZIP file was not created: {zip_path}")
-            return JsonResponse({
-                'success': False, 
-                'error': 'فشل إنشاء ملف ZIP'
-            })
-        
-        # الحصول على حجم الملف
-        file_size = zip_path.stat().st_size
-        logger.info(f"ZIP file created successfully. Size: {file_size} bytes")
-        
-        # إعداد الاستجابة للتحميل
+        # إرجاع الملف للتحميل مباشرة
         response = FileResponse(open(zip_path, 'rb'), as_attachment=True, filename=zip_filename)
         response['Content-Type'] = 'application/zip'
-        response['Content-Length'] = file_size
-        response['Content-Disposition'] = f'attachment; filename="{zip_filename}"'
-        
         return response
         
-    except Upload.DoesNotExist:
-        logger.error(f"Upload {upload_id} does not exist")
-        return JsonResponse({
-            'success': False, 
-            'error': 'الملف غير موجود'
-        })
     except Exception as e:
-        logger.error(f"Unexpected error in download_zip: {e}", exc_info=True)
+        logger.error(f"Error in download_zip: {e}")
         return JsonResponse({
             'success': False, 
-            'error': f'حدث خطأ غير متوقع: {str(e)}'
+            'error': str(e)
         })
 
+@login_required
+def auto_download_zip(request, upload_id):
+    """فحص إذا كان الملف جاهزاً للتحميل التلقائي"""
+    try:
+        upload = get_object_or_404(Upload, id=upload_id, user=request.user)
+        
+        if upload.status == 'completed' and upload.groups.count() > 0:
+            return JsonResponse({
+                'success': True,
+                'ready': True,
+                'download_url': f'/uploads/{upload.id}/download_zip/',
+                'filename': f"{upload.original_filename.replace('.pdf', '')}.zip"
+            })
+        else:
+            return JsonResponse({
+                'success': True,
+                'ready': False,
+                'status': upload.status,
+                'groups_count': upload.groups.count()
+            })
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        })
 
 @login_required
 def upload_delete(request, upload_id):

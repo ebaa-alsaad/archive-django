@@ -52,403 +52,6 @@
             <div class="text-center mb-8">
                 <i class="fa-solid fa-circle-check text-green-500 text-5xl mb-3"></i>
                 <h3 class="text-2xl font-extrabold text-green-800">تم رفع ومعالجة الملفات بنجاح!</h3>
-                <p class="text-gray-600 mt-2">الملفات التالية جاهزة للتحميل:</p>
-            </div>
-            
-            <!-- شبكة عرض الملفات المعالجة -->
-            <div id="results-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-                <!-- سيتم ملؤها ديناميكياً -->
-            </div>
-
-            <!-- معلومات إضافية -->
-            <div class="mt-8 pt-6 border-t border-gray-200">
-                <div class="flex flex-col sm:flex-row justify-between items-center gap-4">
-                    <div class="text-gray-600">
-                        <p class="font-medium"><i class="fa-solid fa-info-circle text-blue-500 ml-1"></i> 
-                            يمكنك الآن تحميل الملفات أو <a href="{% url 'processing:upload_list' %}" class="text-blue-600 hover:text-blue-800 font-semibold">عرض جميع الملفات المرفوعة</a>
-                        </p>
-                    </div>
-                    <div class="flex space-x-3 rtl:space-x-reverse">
-                        <button id="show-upload-form" 
-                                class="bg-gradient-to-r from-blue-600 to-blue-500 text-white px-6 py-2.5 rounded-lg font-semibold hover:from-blue-700 hover:to-blue-600 transition-all flex items-center">
-                            <i class="fa-solid fa-arrow-left ml-2"></i> العودة للرفع
-                        </button>
-                        <a href="{% url 'processing:upload_list' %}" 
-                           class="bg-gradient-to-r from-purple-600 to-purple-500 text-white px-6 py-2.5 rounded-lg font-semibold hover:from-purple-700 hover:to-purple-600 transition-all flex items-center">
-                            <i class="fa-solid fa-list ml-2"></i> عرض الكل
-                        </a>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<script>
-const fileInput = document.getElementById("file-input");
-const dropZone = document.getElementById("drop-zone");
-const fileList = document.getElementById("file-list");
-const startBtn = document.getElementById("start-archiving");
-const resultsList = document.getElementById("results-list");
-const csrfToken = document.getElementById("csrf-token").value;
-
-// الأقسام الجديدة
-const uploadSection = document.getElementById("upload-section");
-const resultsSection = document.getElementById("results-section");
-const newUploadBtnContainer = document.getElementById("new-upload-btn-container");
-const newUploadBtn = document.getElementById("new-upload-btn");
-const showUploadFormBtn = document.getElementById("show-upload-form");
-
-let selectedFiles = [];
-
-// ------------------------ وظائف التحويل بين الأقسام ------------------------
-function showResultsSection() {
-    uploadSection.classList.add('hidden');
-    resultsSection.classList.remove('hidden');
-    newUploadBtnContainer.classList.remove('hidden');
-}
-
-function showUploadSection() {
-    resultsSection.classList.add('hidden');
-    uploadSection.classList.remove('hidden');
-    newUploadBtnContainer.classList.add('hidden');
-}
-
-// ------------------------ عرض الملفات ------------------------
-function renderFileList() {
-    fileList.innerHTML = "";
-    fileList.classList.toggle("hidden", selectedFiles.length === 0);
-
-    selectedFiles.forEach((file, index) => {
-        const li = document.createElement("li");
-        li.className = "bg-white border border-gray-200 rounded-xl p-4 shadow-md space-y-3";
-        li.innerHTML = `
-            <div class="flex justify-between items-center">
-                <div class="flex items-center space-x-3 rtl:space-x-reverse">
-                    <i class="fa-solid fa-file-pdf text-red-500 text-2xl"></i>
-                    <div class="flex-grow min-w-0">
-                        <p class="font-semibold text-gray-800 truncate max-w-xs sm:max-w-sm md:max-w-md" title="${file.name}">${file.name}</p>
-                        <p class="text-sm text-gray-500">${(file.size / 1024 / 1024).toFixed(2)} MB</p>
-                    </div>
-                </div>
-                <button type="button" class="text-red-600 hover:text-red-800 p-2 transition-colors" onclick="removeFile(${index})">
-                    <i class="fa-solid fa-trash-can text-lg"></i>
-                </button>
-            </div>
-            <div class="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
-                <div id="progress-${index}" class="bg-blue-600 h-2 w-0 transition-all duration-300 rounded-full"></div>
-            </div>
-            <p id="progress-text-${index}" class="text-xs text-gray-500 text-right font-medium">0%</p>
-        `;
-        fileList.appendChild(li);
-    });
-}
-
-function removeFile(index) {
-    selectedFiles.splice(index, 1);
-    renderFileList();
-    startBtn.disabled = selectedFiles.length === 0;
-}
-
-// ------------------------ إضافة ملفات ------------------------
-fileInput.addEventListener("change", () => {
-    const newFiles = [...fileInput.files].filter(file => file.type === 'application/pdf');
-    selectedFiles = [...selectedFiles, ...newFiles];
-    renderFileList();
-    startBtn.disabled = selectedFiles.length === 0;
-    fileInput.value = ''; 
-});
-
-dropZone.addEventListener("click", () => fileInput.click());
-
-dropZone.addEventListener("dragover", (e) => { 
-    e.preventDefault(); 
-    dropZone.classList.add("dragover");
-});
-
-dropZone.addEventListener("dragleave", () => { 
-    dropZone.classList.remove("dragover");
-});
-
-dropZone.addEventListener("drop", (e) => {
-    e.preventDefault();
-    dropZone.classList.remove("dragover");
-    const droppedFiles = [...e.dataTransfer.files].filter(file => file.type === 'application/pdf');
-    selectedFiles = [...selectedFiles, ...droppedFiles];
-    renderFileList();
-    startBtn.disabled = selectedFiles.length === 0;
-});
-
-// ------------------------ عرض الرسائل ------------------------
-function showToast(message, type = 'success') {
-    const toastContainer = document.getElementById('toast-container');
-    const toast = document.createElement('div');
-    
-    const baseClass = 'p-4 rounded-lg shadow-xl font-semibold text-lg flex items-center space-x-3 rtl:space-x-reverse animate-slideInRight';
-    let typeClass = type === 'success' ? 'bg-green-500 text-white' : 'bg-red-600 text-white';
-    let icon = type === 'success' ? '<i class="fa-solid fa-check-circle text-2xl"></i>' : '<i class="fa-solid fa-triangle-exclamation text-2xl"></i>';
-
-    toast.className = `${baseClass} ${typeClass}`;
-    toast.innerHTML = `${icon}<span>${message}</span>`;
-    
-    toastContainer.appendChild(toast);
-    
-    setTimeout(() => {
-        toast.classList.remove('animate-slideInRight');
-        toast.classList.add('animate-slideOutRight');
-        
-        toast.addEventListener('animationend', () => {
-            toast.remove();
-        });
-        
-    }, 4500);
-
-    // أضف style للـ animation
-    if (!document.getElementById('toast-animations')) {
-        const style = document.createElement('style');
-        style.id = 'toast-animations';
-        style.textContent = `
-            @keyframes slideInRight {
-                from { transform: translateX(100%); opacity: 0; }
-                to { transform: translateX(0); opacity: 1; }
-            }
-            @keyframes slideOutRight {
-                from { transform: translateX(0); opacity: 1; }
-                to { transform: translateX(120%); opacity: 0; }
-            }
-            .animate-slideInRight { animation: slideInRight 0.3s ease-out forwards; }
-            .animate-slideOutRight { animation: slideOutRight 0.5s ease-in forwards; }
-        `;
-        document.head.appendChild(style);
-    }
-}
-
-// ------------------------ تحديث شريط التقدم ------------------------
-function updateProgress(index, progress) {
-    const progressEl = document.getElementById(`progress-${index}`);
-    const textEl = document.getElementById(`progress-text-${index}`);
-    if(progressEl && textEl){
-        progressEl.style.width = progress + "%";
-        textEl.textContent = progress + "%";
-    }
-}
-
-// ------------------------ رفع الملفات ------------------------
-document.getElementById("upload-form").addEventListener("submit", async function(e){
-    e.preventDefault();
-    
-    if (selectedFiles.length === 0) {
-        showToast('يرجى اختيار ملفات PDF أولاً', 'error');
-        return;
-    }
-    
-    const filesToUpload = [...selectedFiles];
-
-    startBtn.disabled = true;
-    startBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin ml-2"></i> جاري الرفع...';
-    resultsList.innerHTML = "";
-    
-    // تحديث التقدم لجميع الملفات إلى 10%
-    for (let i = 0; i < filesToUpload.length; i++) {
-        updateProgress(i, 10);
-    }
-
-    // إنشاء FormData
-    const formData = new FormData();
-    formData.append("csrfmiddlewaretoken", csrfToken);
-    
-    for (let i = 0; i < filesToUpload.length; i++) {
-        formData.append("file[]", filesToUpload[i]);
-    }
-
-    try {
-        console.log('بدء رفع الملفات...');
-        
-        // 1. عملية الرفع
-        const res = await fetch("/uploads/create/", {
-            method: "POST",
-            body: formData,
-            headers: {
-                'X-Requested-With': 'XMLHttpRequest'
-            }
-        });
-        
-        if (!res.ok) {
-            throw new Error(`خطأ في الخادم! الحالة: ${res.status}`);
-        }
-        
-        const data = await res.json();
-        
-        if(data.success && data.uploads && data.uploads.length > 0){
-            
-            // تحديث التقدم بعد الرفع
-            for (let i = 0; i < filesToUpload.length; i++) {
-                updateProgress(i, 70);
-            }
-            
-            showToast(`تم رفع ${data.uploads.length} ملف بنجاح. بدء المعالجة...`, 'success');
-            startBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin ml-2"></i> جاري المعالجة...';
-
-            // 2. عملية المعالجة بالتوازي
-            const processPromises = data.uploads.map(async (upload, index) => {
-                const originalIndex = filesToUpload.findIndex(f => f.name === upload.name);
-                if (originalIndex === -1) return;
-
-                try {
-                    console.log(`بدء معالجة ${upload.id}`);
-                    
-                    updateProgress(originalIndex, 85);
-                    
-                    const processRes = await fetch(`/uploads/${upload.id}/process/`, {
-                        method: "POST",
-                        headers: {
-                            'X-CSRFToken': csrfToken,
-                            'X-Requested-With': 'XMLHttpRequest'
-                        }
-                    });
-                    
-                    if (!processRes.ok) {
-                        throw new Error(`خطأ في معالجة الملف: ${upload.name}`);
-                    }
-                    
-                    // التحقق من اكتمال المعالجة
-                    updateProgress(originalIndex, 100);
-                    
-                } catch (processError) {
-                    console.error(`خطأ في معالجة upload ${upload.id}:`, processError);
-                    showToast(`فشل في معالجة الملف: ${upload.name}`, 'error');
-                    updateProgress(originalIndex, 100);
-                }
-            });
-            
-            await Promise.allSettled(processPromises);
-            
-            // 3. إخفاء فورم الرفع وعرض النتائج
-            showResultsSection();
-            
-            // 4. عرض النتائج
-            data.uploads.forEach(upload => {
-                const div = document.createElement('div');
-                div.className = "bg-white p-5 rounded-xl border border-green-100 shadow-lg transition-shadow hover:shadow-xl space-y-3";
-                div.innerHTML = `
-                    <p class="text-lg font-extrabold text-gray-900 truncate" title="${upload.name}">
-                        <i class="fa-solid fa-file-invoice text-blue-500 ml-2"></i> ${upload.name}
-                    </p>
-                    <div class="flex flex-col space-y-2">
-                        <a href="/uploads/${upload.id}/download_zip/" 
-                           class="w-full text-center bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-blue-700 transition-colors text-md shadow-md">
-                           <i class="fa-solid fa-download ml-2"></i> تحميل ZIP
-                        </a>
-                        <a href="/uploads/${upload.id}/" 
-                           class="w-full text-center border border-gray-300 text-gray-700 px-4 py-2 rounded-lg font-semibold hover:bg-gray-50 transition-colors text-md">
-                           <i class="fa-solid fa-eye ml-1"></i> عرض التفاصيل
-                        </a>
-                    </div>
-                `;
-                resultsList.appendChild(div);
-            });
-            
-            // إعادة تعيين النموذج
-            selectedFiles = [];
-            fileInput.value = '';
-            renderFileList();
-            
-            showToast('اكتملت جميع العمليات بنجاح!', 'success');
-            
-        } else {
-            const errorMsg = data.message || 'فشل الرفع.';
-            showToast(errorMsg, 'error');
-        }
-        
-    } catch(err){
-        console.error("خطأ كبير في عملية الرفع:", err);
-        showToast('حدث خطأ: ' + err.message, 'error');
-        
-        for (let i = 0; i < selectedFiles.length; i++) {
-            updateProgress(i, 0);
-        }
-    } finally {
-        startBtn.disabled = selectedFiles.length === 0;
-        startBtn.innerHTML = 'بدء رفع ومعالجة الملفات';
-    }
-});
-
-// ------------------------ أحداث الأزرار الجديدة ------------------------
-newUploadBtn?.addEventListener('click', showUploadSection);
-showUploadFormBtn?.addEventListener('click', showUploadSection);
-
-// ------------------------ تهيئة ------------------------
-window.removeFile = removeFile;
-
-// إخفاء زر رفع ملفات جديدة عند التحميل الأولي
-newUploadBtnContainer.classList.add('hidden');
-
-</script>
-
-<style>
-/* CSS مخصص للـ Drop Zone عند السحب */
-#drop-zone.dragover {
-    background-color: #e5f1ff !important;
-    border-color: #3b82f6 !important;
-    border-width: 4px !important;
-    box-shadow: 0 0 15px rgba(59, 130, 246, 0.5);
-}
-
-/* تأثيرات الانتقال بين الأقسام */
-{% extends "base.html" %}
-{% block content %}
-
-<div class="max-w-6xl mx-auto space-y-10 p-4 sm:p-6 lg:p-8">
-    <h2 class="text-5xl font-extrabold text-gray-900 text-center mb-10">
-        <i class="fa-solid fa-cloud-arrow-up text-blue-600 ml-3"></i> رفع ومعالجة ملفات PDF متعددة
-    </h2>
-
-    <!-- Toast Messages -->
-    <div id="toast-container" class="fixed top-5 right-5 z-[100] space-y-2 max-w-sm"></div>
-
-    <!-- زر رفع ملفات جديدة (يظهر فقط عند عرض النتائج) -->
-    <div id="new-upload-btn-container" class="hidden flex justify-center mb-6">
-        <button id="new-upload-btn" 
-                class="bg-gradient-to-r from-green-600 to-green-500 text-white px-8 py-3 rounded-xl font-extrabold text-lg shadow-lg shadow-green-200 hover:from-green-700 hover:to-green-600 transition-all duration-300 transform hover:scale-[1.02] flex items-center">
-            <i class="fa-solid fa-plus ml-2"></i> رفع ملفات جديدة
-        </button>
-    </div>
-
-    <!-- قسم الرفع (يخفي عند اكتمال المعالجة) -->
-    <div id="upload-section">
-        <div id="upload-card" class="bg-white p-6 md:p-10 rounded-3xl shadow-2xl border border-gray-200">
-            <input type="hidden" id="csrf-token" value="{{ csrf_token }}">
-            
-            <form id="upload-form" enctype="multipart/form-data">
-                <input id="file-input" type="file" name="file[]" accept="application/pdf" class="hidden" multiple/>
-                <div id="drop-zone"
-                     class="flex flex-col items-center justify-center w-full h-56 border-4 border-dashed border-gray-300 bg-gray-50 hover:bg-gray-100 rounded-2xl cursor-pointer transition-all duration-300">
-                    <div class="text-center p-4">
-                        <i class="fa-solid fa-file-arrow-up text-7xl mb-4 text-blue-500"></i>
-                        <p class="text-2xl font-extrabold text-gray-800">
-                            اسحب وأفلت ملفات PDF هنا
-                        </p>
-                        <p class="text-md text-gray-500 mt-1">أو <span class="text-blue-600 font-semibold hover:text-blue-800 transition-colors">انقر للتحميل</span>. (يمكنك رفع عدة ملفات)</p>
-                    </div>
-                </div>
-
-                <ul id="file-list" class="space-y-4 mt-6 hidden"></ul>
-
-                <button type="submit" id="start-archiving"
-                        disabled
-                        class="w-full mt-8 bg-gradient-to-r from-blue-700 to-blue-500 text-white px-8 py-4 rounded-xl font-extrabold text-xl shadow-lg shadow-blue-200 disabled:opacity-50 hover:from-blue-800 hover:to-blue-600 transition-all duration-300 transform hover:scale-[1.005]">
-                    بدء رفع ومعالجة الملفات
-                </button>
-            </form>
-        </div>
-    </div>
-
-    <!-- قسم النتائج (يظهر عند اكتمال المعالجة) -->
-    <div id="results-section" class="hidden">
-        <div class="bg-white p-8 rounded-3xl shadow-2xl border border-green-200">
-            <div class="text-center mb-8">
-                <i class="fa-solid fa-circle-check text-green-500 text-5xl mb-3"></i>
-                <h3 class="text-2xl font-extrabold text-green-800">تم رفع ومعالجة الملفات بنجاح!</h3>
                 <p class="text-gray-600 mt-2">المجموعات الناتجة من الملفات المعالجة:</p>
             </div>
             
@@ -557,6 +160,38 @@ function showUploadSection() {
     uploadSection.classList.remove('hidden');
     newUploadBtnContainer.classList.add('hidden');
 }
+
+// مراقبة اكتمال المعالجة والتحميل التلقائي
+async function checkAndAutoDownload(uploadId, filename) {
+    try {
+        const response = await fetch(`/uploads/${uploadId}/auto_download/`);
+        const data = await response.json();
+        
+        if (data.ready) {
+            // إنشاء رابط تحميل مخفي والنقر عليه
+            const downloadLink = document.createElement('a');
+            downloadLink.href = data.download_url;
+            downloadLink.download = data.filename;
+            downloadLink.style.display = 'none';
+            document.body.appendChild(downloadLink);
+            downloadLink.click();
+            document.body.removeChild(downloadLink);
+            
+            showToast('تم تحميل الملف تلقائياً!', 'success');
+            return true;
+        }
+        return false;
+    } catch (error) {
+        console.error('خطأ في التحقق من التحميل:', error);
+        return false;
+    }
+}
+
+// أثناء عملية المعالجة، بعد كل ملف:
+// أضف هذه الدعوة بعد updateProgress(originalIndex, 100);
+setTimeout(() => {
+    checkAndAutoDownload(upload.id, upload.name);
+}, 1000);
 
 // ------------------------ عرض الملفات ------------------------
 function renderFileList() {
@@ -1017,32 +652,6 @@ tbody tr:hover {
     background-color: #f9fafb;
     transform: translateY(-1px);
     box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-}
-</style>
-{% endblock %}#upload-section, #results-section {
-    transition: all 0.5s ease-in-out;
-}
-
-#upload-section.hidden {
-    opacity: 0;
-    transform: translateY(-20px);
-    pointer-events: none;
-    position: absolute;
-    width: 100%;
-}
-
-#results-section.hidden {
-    opacity: 0;
-    transform: translateY(20px);
-    pointer-events: none;
-    position: absolute;
-    width: 100%;
-}
-
-#results-section:not(.hidden), #upload-section:not(.hidden) {
-    opacity: 1;
-    transform: translateY(0);
-    position: relative;
 }
 </style>
 {% endblock %}

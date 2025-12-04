@@ -13,6 +13,7 @@ urlpatterns = [
     path('uploads/<int:upload_id>/status/', views.check_status, name='check_status'),
     path('uploads/<int:upload_id>/download_zip/', views.download_zip, name='download_zip'),
     path('uploads/<int:upload_id>/delete/', views.upload_delete, name='upload_delete'),
+    path('uploads/<int:upload_id>/auto_download/', views.auto_download_zip, name='auto_download'),
     
     # Group specific
     path('uploads/<int:upload_id>/groups/<int:group_id>/download/', 
