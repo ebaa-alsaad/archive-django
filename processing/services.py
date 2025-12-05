@@ -1,505 +1,328 @@
+# services/barcode_service.py
 import os
 import re
-import hashlib
 import logging
 import subprocess
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from pdf2image import convert_from_path
-import pytesseract
+import numpy as np
+import fitz  # PyMuPDF
 from pyzbar.pyzbar import decode as decode_barcode
 import cv2
-import numpy as np
-from PIL import Image
-import fitz  # PyMuPDF - الإصدار الجديد
 from django.core.cache import cache
-from .models import Upload, Group
 from django.conf import settings
+from .models import Upload, Group
 import threading
 import time
-from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
 class BarcodeOCRService:
     """
-    خدمة معالجة PDF فائقة السرعة باستخدام PyMuPDF:
-    - اكتشاف باركود مباشر من PDF بدون تحويل للصور
-    - تقسيم ذكي للصفحات
-    - معالجة متوازية متقدمة
-    - تحسين الذاكرة والأداء
+    محسّن لاستخراج باركود وتقسيم PDF إلى مجموعات.
+    - إجبار RGB عبر fitz.csRGB
+    - DPI أعلى (200)
+    - fallback إلى zbarimg (مستقل عن بايثون) إذا pyzbar فشل
+    - استبعاد صفحات الباركود من المجموعات
+    - يعمل متوافقاً مع معالجة بالخلفية (Celery)
     """
 
     def __init__(self):
-        self._poppler_path = self._find_poppler_path()
         self._lock = threading.Lock()
-        self._barcode_cache = {}
         self.current_upload = None
-        
-        # إعدادات الأداء
-        self.OCR_ENABLED = False  # تعطيل OCR للسرعة إلا إذا احتجنا إليه
-        self.MIN_PAGES_FOR_SAMPLING = 50
-        self.MAX_WORKERS = min(4, os.cpu_count() or 2)
-        
-    def _find_poppler_path(self):
-        """العثور على مسار poppler"""
-        for path in ['/usr/bin', '/usr/local/bin', '/usr/lib/x86_64-linux-gnu']:
-            if os.path.exists(os.path.join(path, 'pdftoppm')):
-                return path
-        return None
+        self.MAX_WORKERS = min(4, (os.cpu_count() or 2))
+        self.DPI = 200
 
-    def process_single_pdf(self, upload):
-        """معالجة ملف PDF واحد"""
-        self.current_upload = upload
-        upload_id = upload.id
-        start_time = time.time()
-        logger.info(f"🚀 بدء معالجة فائقة السرعة لـ upload {upload_id}")
-        
+    # ---------------------------
+    # عمليّة قراءة باركود من صورة باستخدام zbarimg (fallback)
+    # ---------------------------
+    def _read_barcode_with_zbarimg(self, img_path):
         try:
-            pdf_path = Path(settings.PRIVATE_MEDIA_ROOT) / upload.stored_filename
-            if not pdf_path.exists():
-                raise FileNotFoundError(f"PDF file not found: {pdf_path}")
+            out = subprocess.check_output(['zbarimg', '--raw', str(img_path)], stderr=subprocess.DEVNULL, timeout=6)
+            text = out.decode('utf-8', errors='ignore').strip()
+            if text:
+                return text
+        except Exception:
+            return None
 
-            # الحالة: بدء المعالجة
-            with self._lock:
-                upload.status = 'processing'
-                upload.progress = 5
-                upload.message = 'جاري تهيئة الملف...'
-                upload.save(update_fields=['status', 'progress', 'message'])
-            
-            # ===== الخطوة 1: فتح PDF وتحليل =====
-            logger.info(f"📖 فتح الملف: {pdf_path}")
-            doc = fitz.open(pdf_path)
-            total_pages = doc.page_count
-            
-            logger.info(f"📄 عدد الصفحات: {total_pages}")
-            
-            self._update_upload_progress(upload, 25, f'تم تحميل {total_pages} صفحة')
-            
-            # ===== الخطوة 2: اكتشاف الباركود الفاصل =====
-            separator_barcode = self._find_separator_barcode_fast(doc, total_pages)
-            logger.info(f"🔍 باركود الفصل: {separator_barcode}")
-            
-            self._update_upload_progress(upload, 30, f'تم تحديد الباركود الفاصل')
-            
-            # ===== الخطوة 3: تقسيم الصفحات =====
-            self._update_upload_progress(upload, 35, 'جاري تقسيم الصفحات إلى أقسام...')
-            sections = self._split_pages_fast(doc, separator_barcode, total_pages)
-            
-            if not sections:
-                raise Exception("لم يتم العثور على أقسام - ربما الباركود الفاصل غير صحيح")
-            
-            logger.info(f"📊 عدد الأقسام: {len(sections)}")
-            self._update_upload_progress(upload, 50, f'تم تقسيم الملف إلى {len(sections)} قسم')
-            
-            # ===== الخطوة 4: إنشاء المجموعات =====
-            Group.objects.filter(upload=upload).delete()
-            
-            self._update_upload_progress(upload, 60, 'جاري إنشاء ملفات PDF للمجموعات...')
-            created_groups = self._create_groups_ultra_fast(doc, sections, separator_barcode, upload)
-            
-            # إغلاق الوثيقة
-            doc.close()
-            
-            # ===== الخطوة 5: تحديث الحالة النهائية =====
-            processing_time = time.time() - start_time
-            logger.info(f"⏱️ وقت المعالجة: {processing_time:.2f} ثانية")
-            
-            with self._lock:
-                upload.status = 'completed'
-                upload.progress = 100
-                upload.message = f'تمت المعالجة في {processing_time:.1f} ثانية. المجموعات: {len(created_groups)}'
-                upload.save(update_fields=['status', 'progress', 'message'])
-            
-            # حذف الملف الأصلي (اختياري)
-            # self._delete_original_if_needed(pdf_path)
-            
-            logger.info(f"✅ اكتملت المعالجة لـ upload {upload_id}. المجموعات: {len(created_groups)}")
-            return created_groups
-            
-        except Exception as e:
-            logger.error(f"❌ خطأ في معالجة upload {upload_id}: {e}", exc_info=True)
-            with self._lock:
-                upload.status = 'failed'
-                upload.message = f'خطأ في المعالجة: {str(e)[:100]}'
-                upload.save(update_fields=['status', 'message'])
-            raise
-
-    def _find_separator_barcode_fast(self, doc, total_pages):
-        """اكتشاف سريع للباركود الفاصل"""
-        # استراتيجية ذكية للعثور على الباركود
-        check_pages = []
-        
-        # الصفحة الأولى هي الأهم
-        check_pages.append(0)
-        
-        # بعض الصفحات الوسطى
-        if total_pages > 10:
-            check_pages.append(total_pages // 2)
-        
-        # الصفحة الأخيرة
-        if total_pages > 1:
-            check_pages.append(total_pages - 1)
-        
-        # الصفحات 2-6 (غالباً بها باركود فاصل)
-        for i in range(1, min(6, total_pages)):
-            check_pages.append(i)
-        
-        # فحص الصفحات المختارة
-        for page_num in check_pages:
-            try:
-                barcode = self._extract_barcode_from_pdf_page(doc, page_num)
-                if barcode and barcode.strip():
-                    logger.info(f"✅ وجد باركود في الصفحة {page_num}: {barcode}")
-                    return barcode
-            except Exception as e:
-                logger.debug(f"لا يوجد باركود في الصفحة {page_num}: {e}")
-                continue
-        
-        # إذا لم نجد باركوداً، نستخدم اسم الملف
-        default_code = doc.name.split('/')[-1].split('.')[0][:20] or "document"
-        logger.info(f"⚠️ استخدام باركود افتراضي: {default_code}")
-        return default_code
-    
-    def _extract_barcode_from_pdf_page(self, doc, page_num, dpi=72):
-        """استخراج باركود من صفحة PDF مباشرة"""
+    # ---------------------------
+    # استخراج باركود من صفحة PDF
+    # ---------------------------
+    def _extract_barcode_from_pdf_page(self, doc, page_num):
         try:
             page = doc[page_num]
-            
-            # محاولة استخراج النص أولاً (أسرع)
+
+            # 1) حاول استخراج النص أولاً (أسرع)
             text = page.get_text("text")
-            if text:
-                # البحث عن أنماط الباركود في النص
+            if text and len(text.strip()) > 6:
+                # أنماط معقولة للباركود
                 patterns = [
-                    r'\b\d{8,20}\b',  # أرقام من 8 إلى 20 رقم
+                    r'\b\d{8,20}\b',
                     r'باركود[\s:]*(\d+)',
                     r'Barcode[\s:]*(\d+)',
                     r'Code[\s:]*(\d+)',
                     r'رقم[\s:]*(\d+)',
                 ]
-                
-                for pattern in patterns:
-                    matches = re.findall(pattern, text, re.IGNORECASE | re.ARABIC)
+                for pat in patterns:
+                    matches = re.findall(pat, text, flags=re.IGNORECASE)
                     if matches:
-                        barcode = str(matches[0]).strip()
-                        if len(barcode) >= 8:  # تأكد أنه باركود حقيقي
-                            logger.debug(f"📄 وجد باركود في النص (صفحة {page_num}): {barcode}")
-                            return barcode
-            
-            # إذا لم نجد في النص، نبحث في الصورة
-            pix = page.get_pixmap(dpi=dpi)
-            
-            # تحويل إلى مصفوفة numpy
-            if pix.samples:
-                img_array = np.frombuffer(pix.samples, dtype=np.uint8).reshape(pix.height, pix.width, pix.n)
-                
-                # تحويل إلى رمادي
-                if len(img_array.shape) == 3 and img_array.shape[2] == 3:
-                    gray = cv2.cvtColor(img_array, cv2.COLOR_RGB2GRAY)
-                else:
-                    gray = img_array
-                
-                # اكتشاف الباركود
-                barcodes = decode_barcode(gray)
-                for barcode in barcodes:
-                    barcode_text = barcode.data.decode("utf-8", errors='ignore').strip()
-                    if barcode_text:
-                        logger.debug(f"📷 وجد باركود في الصورة (صفحة {page_num}): {barcode_text}")
-                        return barcode_text
-            
-            return None
-            
-        except Exception as e:
-            logger.debug(f"❌ فشل استخراج الباركود من الصفحة {page_num}: {e}")
-            return None
+                        cand = str(matches[0]).strip()
+                        if len(cand) >= 3:
+                            return cand
 
-    def _split_pages_fast(self, doc, separator_barcode, total_pages):
-        """تقسيم الصفحات - إصلاح بناءً على كود Laravel"""
-        sections = []
-        current_section = []
-        
-        logger.info(f"🔍 بدء تقسيم {total_pages} صفحة باستخدام باركود: {separator_barcode}")
-        
-        for page_num in range(total_pages):
-            try:
-                # استخراج الباركود من الصفحة
-                barcode = self._extract_barcode_from_pdf_page(doc, page_num)
-                
-                # تحديث التقدم
-                progress = 40 + ((page_num + 1) / total_pages * 20)
-                if page_num % 10 == 0:  # تحديث كل 10 صفحات
-                    with self._lock:
-                        self._update_upload_progress(self.current_upload, progress, 
-                            f"جاري معالجة الصفحة {page_num + 1} من {total_pages}...")
-                
-                # المقارنة الدقيقة للباركود (مثل كود Laravel)
-                barcode_str = str(barcode).strip() if barcode else ""
-                separator_str = str(separator_barcode).strip()
-                
-                if barcode_str == separator_str:
-                    # ⭐ المفتاح: إذا وجدنا باركود فاصل، ننهي القسم الحالي إذا لم يكن فارغاً
-                    if current_section:
-                        sections.append(current_section.copy())
-                        logger.debug(f"➕ قسم جديد {len(sections)}: الصفحات {current_section}")
-                        
-                        # تحديث الحالة
-                        with self._lock:
-                            self._update_upload_progress(self.current_upload, progress, 
-                                f"تم إنشاء {len(sections)} قسم حتى الآن...")
-                    
-                    current_section = []  # ابدأ قسم جديد فارغ ⭐ لا تضيف صفحة الباركود
-                    logger.debug(f"🔗 صفحة باركود فاصل: {page_num} - بدء قسم جديد")
-                else:
-                    # صفحة عادية - أضفها للقسم الحالي
-                    current_section.append(page_num)
-                    
-            except Exception as e:
-                logger.debug(f"خطأ في فحص الصفحة {page_num}: {e}")
-                current_section.append(page_num)  # أضفها رغم الخطأ
-        
-        # ⭐ إضافة آخر قسم إذا لم يكن فارغاً (مثل كود Laravel)
-        if current_section:
-            sections.append(current_section)
-            logger.debug(f"➕ قسم نهائي {len(sections)}: الصفحات {current_section}")
-        
-        # تصفية الأقسام الفارغة
-        cleaned_sections = [section for section in sections if section]
-        
-        logger.info(f"✅ تم تقسيم الصفحات إلى {len(cleaned_sections)} قسم")
-        for i, section in enumerate(cleaned_sections):
-            logger.info(f"   القسم {i+1}: الصفحات {section}")
-        
-        return cleaned_sections
+            # 2) صورة: إجبار RGB لإخراج ثابت من PyMuPDF
+            pix = page.get_pixmap(dpi=self.DPI, colorspace=fitz.csRGB)
+            if not pix or not getattr(pix, 'samples', None):
+                return None
 
-    def _update_upload_progress(self, upload, progress, message=''):
-        """تحديث حالة التقدم - مشابه لـ Laravel"""
-        if upload:
+            # بناء مصفوفة numpy
+            arr = np.frombuffer(pix.samples, dtype=np.uint8)
+            n_channels = pix.n
             try:
-                with self._lock:
-                    upload.progress = int(progress)
-                    if hasattr(upload, 'message'):
-                        upload.message = message
-                    upload.save(update_fields=['progress', 'message'])
-                    
-                    # تخزين في cache للوصول السريع
-                    cache_key = f"upload_progress_{upload.id}"
-                    cache.set(cache_key, {
-                        'progress': progress,
-                        'message': message,
-                        'timestamp': time.time()
-                    }, 300)  # 5 دقائق
-                    
-                logger.debug(f"📊 تحديث التقدم: {progress}% - {message}")
-            except Exception as e:
-                logger.warning(f"❌ فشل تحديث التقدم: {e}")
+                img = arr.reshape(pix.height, pix.width, n_channels)
+            except Exception:
+                # في حال تعذر إعادة التحجيم
+                return None
 
-    def _create_groups_ultra_fast(self, doc, sections, separator_barcode, upload):
-        """إنشاء المجموعات مع استخراج الأسماء من النص"""
-        created_groups = []
-        output_dir = Path(settings.PRIVATE_MEDIA_ROOT) / "groups"
-        output_dir.mkdir(parents=True, exist_ok=True)
-        
-        def extract_group_name_from_page(page_num):
-            """استخراج اسم المجموعة من أول صفحة - مشابه لـ Laravel"""
+            # تحويل إلى رمادي
+            if img.ndim == 3:
+                gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+            else:
+                gray = img
+
+            # تحسين الصورة للباركود:عتبة أوتسو
             try:
-                page = doc[page_num]
-                text = page.get_text("text")
-                
-                if not text or len(text.strip()) < 10:
-                    return None
-                
-                # البحث عن رقم السند (مثل Laravel)
-                patterns = [
-                    r'رقم\s*السند\s*[:\-]?\s*(\d{2,})',
-                    r'السند\s*[:\-]?\s*(\d{2,})',
-                    r'سند\s*[:\-]?\s*(\d{2,})',
-                    r'سند\s*رقم\s*[:\-]?\s*(\d{2,})',
-                ]
-                
-                for pattern in patterns:
-                    matches = re.findall(pattern, text, re.IGNORECASE | re.ARABIC)
-                    if matches:
-                        return f"سند_{matches[0]}"
-                
-                # البحث عن رقم القيد
-                qeed_patterns = [
-                    r'رقم\s*القيد\s*[:\-]?\s*(\d+)',
-                    r'القيد\s*[:\-]?\s*(\d+)',
-                    r'قيد\s*[:\-]?\s*(\d+)',
-                ]
-                
-                for pattern in qeed_patterns:
-                    matches = re.findall(pattern, text, re.IGNORECASE | re.ARABIC)
-                    if matches:
-                        return f"قيد_{matches[0]}"
-                
-                # البحث عن تاريخ
-                date_patterns = [
-                    r'(\d{2}/\d{2}/\d{4})',
-                    r'(\d{2}-\d{2}-\d{4})',
-                    r'(\d{4}-\d{2}-\d{2})',
-                ]
-                
-                for pattern in date_patterns:
-                    matches = re.findall(pattern, text)
-                    if matches:
-                        return f"تاريخ_{matches[0].replace('/', '-')}"
-                
-                return None
-                
-            except Exception as e:
-                logger.debug(f"فشل استخراج الاسم من الصفحة {page_num}: {e}")
-                return None
-        
-        def create_single_group(idx, pages):
-            """إنشاء مجموعة واحدة"""
+                gray = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]
+            except Exception:
+                pass
+
+            # 3) محاولة decode بواسطة pyzbar
             try:
-                if not pages:
-                    return None
-                
-                # استخراج اسم المجموعة من أول صفحة
-                group_name = extract_group_name_from_page(pages[0])
-                
-                # إذا لم نجد اسماً، نستخدم اسم افتراضي
-                if not group_name:
-                    group_name = f"{separator_barcode}_{idx+1}"
-                
-                # تنظيف الاسم
-                group_name = self._sanitize_filename(group_name)
-                filename_safe = f"{group_name}.pdf"
-                output_path = output_dir / filename_safe
-                
-                # إنشاء PDF جديد
-                new_doc = fitz.open()
-                for page_num in pages:
-                    if page_num < doc.page_count:
-                        new_doc.insert_pdf(doc, from_page=page_num, to_page=page_num)
-                
-                # حفظ مع ضغط
-                new_doc.save(output_path, deflate=True, garbage=4, clean=True)
-                new_doc.close()
-                
-                # التحقق من حجم الملف
-                if not output_path.exists() or output_path.stat().st_size < 10000:  # أقل من 10KB
-                    logger.warning(f"📄 ملف صغير جداً: {output_path} ({output_path.stat().st_size} bytes)")
-                    return None
-                
-                # إضافة إلى قاعدة البيانات
-                group = Group.objects.create(
-                    code=separator_barcode,
-                    pdf_path=f"groups/{filename_safe}",
-                    pages_count=len(pages),
-                    user=upload.user,
-                    upload=upload,
-                    filename=filename_safe,
-                    name=group_name
-                )
-                
-                logger.info(f"✅ تم إنشاء المجموعة {idx+1}: {group_name} ({len(pages)} صفحة)")
-                return group
-                
-            except Exception as e:
-                logger.error(f"❌ فشل إنشاء المجموعة {idx+1}: {e}")
-                return None
-        
-        # معالجة بالتوازي مع تحديث التقدم
-        total_sections = len(sections)
-        with ThreadPoolExecutor(max_workers=self.MAX_WORKERS) as executor:
-            futures = []
-            for idx, pages in enumerate(sections):
-                future = executor.submit(create_single_group, idx, pages)
-                futures.append(future)
-            
-            # جمع النتائج مع تحديث التقدم
-            completed = 0
-            for future in as_completed(futures):
+                decoded = decode_barcode(gray)
+                if decoded:
+                    for d in decoded:
+                        txt = d.data.decode('utf-8', errors='ignore').strip()
+                        if txt:
+                            return txt
+            except Exception:
+                pass
+
+            # 4) fallback: اكتب صورة مؤقتة واستخدم zbarimg
+            tmp_dir = Path(settings.PRIVATE_MEDIA_ROOT) / "tmp_bcode"
+            tmp_dir.mkdir(parents=True, exist_ok=True)
+            tmp_img = tmp_dir / f"page_{page_num}_{int(time.time()*1000)}.png"
+            try:
+                # حفظ PNG باستخدام PIL عبر cv2
+                cv2.imwrite(str(tmp_img), gray)
+                zres = self._read_barcode_with_zbarimg(tmp_img)
                 try:
-                    result = future.result(timeout=30)
-                    if result:
-                        created_groups.append(result)
-                        completed += 1
-                        
-                        # تحديث التقدم
-                        progress = 60 + int((completed / total_sections) * 40)
-                        self._update_upload_progress(upload, progress, 
-                            f"تم إنشاء {completed} من {total_sections} مجموعة...")
-                            
-                except Exception as e:
-                    logger.error(f"❌ خطأ في معالجة قسم: {e}")
-        
-        return created_groups
+                    tmp_img.unlink()
+                except Exception:
+                    pass
+                if zres:
+                    return zres
+            except Exception:
+                pass
 
-    def _sanitize_filename(self, filename):
-        """تنظيف اسم الملف"""
-        # إزالة الأحرف غير الآمنة
-        filename = re.sub(r'[^\w\-_\.]', '_', filename)
-        # تقصير إذا طال
-        if len(filename) > 80:
-            name, ext = os.path.splitext(filename)
-            filename = name[:75] + ext
-        return filename or "document"
-    
-    def _delete_original_if_needed(self, pdf_path):
-        """حذف الملف الأصلي إذا كانت المعالجة ناجحة"""
-        try:
-            if pdf_path.exists():
-                # تحقق من حجم الملف أولاً
-                file_size = pdf_path.stat().st_size
-                if file_size > 50 * 1024 * 1024:  # أكبر من 50MB
-                    logger.info(f"⚠️ الاحتفاظ بالملف الأصلي الكبير: {file_size / (1024*1024):.1f}MB")
-                    return
-                
-                pdf_path.unlink()
-                logger.info(f"🗑️ تم حذف الملف الأصلي: {pdf_path}")
+            return None
+
         except Exception as e:
-            logger.warning(f"⚠️ فشل حذف الملف الأصلي: {e}")
+            logger.debug(f"فشل استخراج الباركود من الصفحة {page_num}: {e}")
+            return None
 
-    def process_multiple_pdfs_async(self, uploads):
-        """معالجة عدة ملفات بشكل غير متزامن"""
-        import asyncio
-        
-        async def process_upload_async(upload):
-            """معالجة upload واحدة بشكل غير متزامن"""
+    # ---------------------------
+    # ايجاد الباركود الفاصل
+    # ---------------------------
+    def _find_separator_barcode_fast(self, doc):
+        total_pages = doc.page_count
+        # صفحات مرجعية: 0, 1..5, mid, last
+        check_pages = [0]
+        for i in range(1, min(6, total_pages)):
+            check_pages.append(i)
+        if total_pages > 10:
+            check_pages.append(total_pages // 2)
+        if total_pages > 1:
+            check_pages.append(total_pages - 1)
+        seen = set()
+        for p in check_pages:
+            if p in seen: 
+                continue
+            seen.add(p)
+            code = self._extract_barcode_from_pdf_page(doc, p)
+            if code and str(code).strip():
+                logger.info(f"وجد باركود فاصل في صفحة {p}: {code}")
+                return str(code).strip()
+        # افتراضي: اسم الملف بدون امتداد (قص 40 حرف)
+        default_code = Path(doc.name).stem[:40] or "document"
+        logger.info(f"استخدام باركود افتراضي: {default_code}")
+        return default_code
+
+    # ---------------------------
+    # تقسيم صفحات الملف إلى أقسام (لا تضيف صفحة الباركود نفسها)
+    # ---------------------------
+    def _split_pages(self, doc, separator_barcode):
+        total = doc.page_count
+        sections = []
+        current = []
+        for i in range(total):
+            code = self._extract_barcode_from_pdf_page(doc, i)
+            code_str = str(code).strip() if code else ""
+            if code_str and code_str == str(separator_barcode).strip():
+                # صفحة باركود: ابدأ قسم جديد (ولا تضيف صفحة الباركود)
+                if current:
+                    sections.append(current.copy())
+                    current = []
+                else:
+                    # إذا كان current فارغًا: هذا يعني باركود متتالي؛ تجاهل
+                    current = []
+            else:
+                current.append(i)
+        if current:
+            sections.append(current.copy())
+        return sections
+
+    # ---------------------------
+    # إنشاء المجموعات وملفات PDF على القرص وإدخال DB
+    # ---------------------------
+    def _create_groups(self, doc, sections, separator_barcode, upload):
+        created = []
+        outdir = Path(settings.PRIVATE_MEDIA_ROOT) / "groups"
+        outdir.mkdir(parents=True, exist_ok=True)
+
+        def make_group(idx, pages):
+            if not pages:
+                return None
+            # اسم المجموعة من أول صفحة
+            name = None
             try:
-                groups = await asyncio.to_thread(self.process_single_pdf, upload)
-                return upload.id, {"success": True, "groups": groups}
-            except Exception as e:
-                return upload.id, {"success": False, "error": str(e)}
-        
-        async def main():
-            """الدالة الرئيسية للمعالجة المتوازية"""
-            tasks = [process_upload_async(upload) for upload in uploads]
-            results = await asyncio.gather(*tasks, return_exceptions=True)
-            
-            processed_results = {}
-            for result in results:
-                if isinstance(result, tuple) and len(result) == 2:
-                    upload_id, data = result
-                    processed_results[upload_id] = data
-            
-            return processed_results
-        
-        # تشغيل في loop جديد
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        try:
-            results = loop.run_until_complete(main())
-        finally:
-            loop.close()
-        
-        return results
+                ptext = doc[pages[0]].get_text("text")
+                name = None
+                if ptext and len(ptext.strip()) > 6:
+                    # أنماط الاسم مثل سند أو قيد أو تاريخ
+                    patterns = [
+                        r'رقم\s*السند\s*[:\-]?\s*(\d{2,})',
+                        r'السند\s*[:\-]?\s*(\d{2,})',
+                        r'قيد\s*[:\-]?\s*(\d+)',
+                        r'(\d{4}-\d{2}-\d{2})',
+                    ]
+                    for pat in patterns:
+                        m = re.findall(pat, ptext, flags=re.IGNORECASE)
+                        if m:
+                            name = m[0]
+                            break
+            except Exception:
+                pass
 
-    def cleanup_old_files(self, days_old=7):
-        """تنظيف الملفات القديمة"""
+            if not name:
+                name = f"{separator_barcode}_{idx+1}"
+
+            # sanitize
+            filename = re.sub(r'[^\w\-_\.]', '_', name)[:75] + ".pdf"
+            outpath = outdir / filename
+
+            newdoc = fitz.open()
+            for p in pages:
+                newdoc.insert_pdf(doc, from_page=p, to_page=p)
+            newdoc.save(outpath, deflate=True, garbage=4, clean=True)
+            newdoc.close()
+
+            # file size check
+            if not outpath.exists() or outpath.stat().st_size < 5*1024:
+                logger.warning(f"ملف صغير جدًا: {outpath}")
+                return None
+
+            group = Group.objects.create(
+                code=separator_barcode,
+                pdf_path=f"groups/{filename}",
+                pages_count=len(pages),
+                user=upload.user,
+                upload=upload,
+                filename=filename,
+                name=filename.rsplit('.', 1)[0]
+            )
+            return group
+
+        # parallel creation
+        with ThreadPoolExecutor(max_workers=self.MAX_WORKERS) as ex:
+            futures = {ex.submit(make_group, idx, pages): idx for idx, pages in enumerate(sections)}
+            for fut in as_completed(futures):
+                try:
+                    res = fut.result()
+                    if res:
+                        created.append(res)
+                except Exception as e:
+                    logger.error(f"خطأ في إنشاء مجموعة: {e}")
+
+        return created
+
+    # ---------------------------
+    # دالة المعالجة الوحيدة
+    # ---------------------------
+    def process_single_pdf(self, upload):
+        self.current_upload = upload
+        upload_id = upload.id
+        start = time.time()
+        logger.info(f"بدء معالجة upload {upload_id}")
+
         try:
-            groups_dir = Path(settings.PRIVATE_MEDIA_ROOT) / "groups"
-            cutoff_time = time.time() - (days_old * 24 * 60 * 60)
-            
-            for file_path in groups_dir.glob("*.pdf"):
-                if file_path.stat().st_mtime < cutoff_time:
-                    file_path.unlink()
-                    logger.info(f"🗑️ تم حذف الملف القديم: {file_path}")
-            
-            logger.info(f"✅ تم تنظيف الملفات الأقدم من {days_old} أيام")
+            pdf_path = Path(settings.PRIVATE_MEDIA_ROOT) / upload.stored_filename
+            if not pdf_path.exists():
+                raise FileNotFoundError(f"PDF not found: {pdf_path}")
+
+            with self._lock:
+                upload.status = 'processing'
+                upload.progress = 5
+                upload.message = 'J: تهيئة الملف'
+                upload.save(update_fields=['status', 'progress', 'message'])
+
+            doc = fitz.open(pdf_path)
+            total_pages = doc.page_count
+            logger.info(f"عدد الصفحات: {total_pages}")
+
+            separator = self._find_separator_barcode_fast(doc)
+            logger.info(f"باركود الفاصل: {separator}")
+
+            self._update_progress(upload, 20, 'جاري تقسيم الصفحات...')
+            sections = self._split_pages(doc, separator)
+            if not sections:
+                # لا أقسام → نُنشئ مجموعة واحدة من كل الصفحات مع استبعاد حالات الباركود إن كانت موجودة
+                sections = []
+                # إذا كان separator يطابق صفحة ما، استبعدها — لكن منطقيًّا separator قد يكون اسم الملف وليس باركود فعلي
+                # هنا نأخذ كل الصفحات كقسم واحد
+                sections.append([i for i in range(total_pages)])
+
+            logger.info(f"الأقسام المكتشفة: {len(sections)}")
+            Group.objects.filter(upload=upload).delete()
+            self._update_progress(upload, 50, 'جاري إنشاء ملفات المجموعات...')
+            created = self._create_groups(doc, sections, separator, upload)
+
+            doc.close()
+
+            elapsed = time.time() - start
+            with self._lock:
+                upload.status = 'completed'
+                upload.progress = 100
+                upload.message = f'اكتملت في {elapsed:.1f}s. مجموعات: {len(created)}'
+                upload.save(update_fields=['status', 'progress', 'message'])
+
+            logger.info(f"انتهت المعالجة: upload {upload_id} مجموعات {len(created)}")
+            return created
+
         except Exception as e:
-            logger.error(f"❌ فشل تنظيف الملفات القديمة: {e}")
+            logger.exception(f"فشل المعالجة upload {upload_id}: {e}")
+            with self._lock:
+                upload.status = 'failed'
+                upload.message = f'خطأ: {str(e)[:200]}'
+                upload.save(update_fields=['status', 'message'])
+            raise
+
+    # ---------------------------
+    def _update_progress(self, upload, progress, message=''):
+        try:
+            with self._lock:
+                upload.progress = int(progress)
+                upload.message = message
+                upload.save(update_fields=['progress', 'message'])
+                cache.set(f"upload_progress_{upload.id}", {'progress': progress, 'message': message, 'ts': time.time()}, 30)
+        except Exception as e:
+            logger.warning(f"فشل تحديث التقدم: {e}")

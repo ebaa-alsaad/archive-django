@@ -17,6 +17,7 @@ from .services import BarcodeOCRService
 from concurrent.futures import ThreadPoolExecutor
 from django.views.decorators.csrf import csrf_exempt
 import time
+from .tasks import process_upload_task
 
 logger = logging.getLogger(__name__)
 
@@ -117,55 +118,32 @@ def upload_create(request):
 def process_upload(request, upload_id):
     try:
         upload = get_object_or_404(Upload, id=upload_id, user=request.user)
-        
+
         if upload.status in ['processing', 'completed']:
             return JsonResponse({
-                'success': True, 
+                'success': True,
                 'status': upload.status,
                 'message': 'الملف قيد المعالجة أو مكتمل بالفعل'
             })
-        
-        # تحديث الحالة فوراً
-        upload.status = 'processing'
-        upload.progress = 5
+
+        # تحديث الحالة
+        upload.status = "pending"
+        upload.progress = 0
         upload.save(update_fields=['status', 'progress'])
-        
-        # استخدام الخدمة الصحيحة
-        def background_process():
-            try:
-                service = BarcodeOCRService()
-                service.process_single_pdf(upload)
-                
-                # ✅ التحقق من النتيجة
-                upload.refresh_from_db()
-                if upload.status == 'completed' and upload.groups.count() > 0:
-                    logger.info(f"✅ تمت معالجة {upload.id} بنجاح مع {upload.groups.count()} مجموعة")
-                else:
-                    logger.warning(f"⚠️ المعالجة اكتملت ولكن لا توجد مجموعات: {upload.id}")
-                    
-            except Exception as e:
-                logger.error(f"Background processing failed for upload {upload.id}: {e}", exc_info=True)
-                upload.refresh_from_db()
-                upload.status = 'failed'
-                upload.message = f'فشل المعالجة: {str(e)[:200]}'
-                upload.save(update_fields=['status', 'message'])
-        
-        # بدء المعالجة في thread منفصل
-        thread = threading.Thread(target=background_process, daemon=True)
-        thread.start()
-        
+
+        # تشغيل المعالجة بخلفية Thread
+        Thread(target=process_upload_task, args=(upload.id,), daemon=True).start()
+
         return JsonResponse({
-            'success': True, 
-            'message': 'بدأت المعالجة...',
-            'status': 'processing',
-            'progress': 5
+            'success': True,
+            'message': 'تم إرسال الملف للمعالجة بالخلفية',
+            'status': 'processing'
         })
-        
+
     except Exception as e:
-        logger.error(f"Error in process_upload: {e}", exc_info=True)
         return JsonResponse({
-            'success': False, 
-            'message': f'خطأ فوري: {str(e)[:100]}'
+            'success': False,
+            'message': str(e)
         })
 
 
